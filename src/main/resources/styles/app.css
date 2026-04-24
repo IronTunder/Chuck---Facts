@@ -1,0 +1,209 @@
+.app-root {
+    -fx-background-color: linear-gradient(to bottom right, #fff7ed, #ecfeff 48%, #faf5ff);
+    -fx-font-family: "Segoe UI", "Inter", "Arial", sans-serif;
+}
+
+.top-bar {
+    -fx-padding: 22 28 18 28;
+    -fx-background-color: rgba(255, 255, 255, 0.78);
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-border-width: 0 0 1 0;
+}
+
+.app-title {
+    -fx-font-size: 28px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #111827;
+}
+
+.app-subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748b;
+}
+
+.feed-scroll {
+    -fx-background: transparent;
+    -fx-background-color: transparent;
+}
+
+.feed-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.feed-wrap {
+    -fx-padding: 28 28 18 28;
+}
+
+.post-card {
+    -fx-background-color: white;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.16), 28, 0.12, 0, 14);
+    -fx-padding: 22;
+}
+
+.mini-card {
+    -fx-background-color: #f8fafc;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-padding: 16;
+}
+
+.translation-card {
+    -fx-background-color: #ecfeff;
+    -fx-border-color: rgba(8, 145, 178, 0.18);
+}
+
+.handle {
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #334155;
+}
+
+.badge-source,
+.badge-soft,
+.status-pill {
+    -fx-background-radius: 999;
+    -fx-padding: 6 11 6 11;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+}
+
+.badge-source {
+    -fx-background-color: #ffedd5;
+    -fx-text-fill: #c2410c;
+}
+
+.badge-soft {
+    -fx-background-color: #ede9fe;
+    -fx-text-fill: #6d28d9;
+}
+
+.status-pill {
+    -fx-background-color: #dcfce7;
+    -fx-text-fill: #166534;
+}
+
+.section-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #475569;
+    -fx-text-transform: uppercase;
+}
+
+.section-note {
+    -fx-font-size: 12px;
+    -fx-text-fill: #0e7490;
+    -fx-font-weight: 700;
+}
+
+.body-copy {
+    -fx-font-size: 18px;
+    -fx-line-spacing: 3px;
+    -fx-text-fill: #111827;
+}
+
+.combo-modern {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(15, 23, 42, 0.14);
+    -fx-padding: 4 6 4 6;
+}
+
+.action-button {
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-font-size: 13px;
+    -fx-font-weight: 800;
+    -fx-padding: 10 14 10 14;
+    -fx-cursor: hand;
+}
+
+.button-primary {
+    -fx-background-color: #14b8a6;
+    -fx-text-fill: white;
+}
+
+.button-primary:hover {
+    -fx-background-color: #0f9f91;
+}
+
+.button-secondary {
+    -fx-background-color: #7c3aed;
+    -fx-text-fill: white;
+}
+
+.button-secondary:hover {
+    -fx-background-color: #6d28d9;
+}
+
+.button-ghost {
+    -fx-background-color: #f1f5f9;
+    -fx-text-fill: #334155;
+}
+
+.button-ghost:hover {
+    -fx-background-color: #e2e8f0;
+}
+
+.icon-button {
+    -fx-min-width: 42px;
+    -fx-pref-width: 42px;
+    -fx-font-size: 18px;
+    -fx-background-color: #ffedd5;
+    -fx-text-fill: #c2410c;
+}
+
+.icon-button:hover {
+    -fx-background-color: #fed7aa;
+}
+
+.button:disabled,
+.combo-box:disabled {
+    -fx-opacity: 0.48;
+}
+
+.history-panel {
+    -fx-padding: 16;
+    -fx-background-color: white;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.18), 22, 0.12, 0, 10);
+}
+
+.history-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #334155;
+}
+
+.history-table {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+}
+
+.history-table .column-header-background {
+    -fx-background-color: #f8fafc;
+    -fx-background-radius: 12 12 0 0;
+}
+
+.history-table .column-header,
+.history-table .filler {
+    -fx-background-color: transparent;
+}
+
+.history-table .table-row-cell {
+    -fx-background-color: white;
+    -fx-border-color: transparent transparent #f1f5f9 transparent;
+}
+
+.history-table .table-row-cell:selected {
+    -fx-background-color: #ccfbf1;
+    -fx-text-background-color: #0f172a;
+}
