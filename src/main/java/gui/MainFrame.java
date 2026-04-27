@@ -4,7 +4,6 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
@@ -14,6 +13,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
@@ -21,9 +22,9 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import javafx.stage.Popup;
 import model.HistoryEntry;
 import model.JokeResult;
 import service.ChuckNorrisService;
@@ -40,10 +41,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 public class MainFrame {
-    private static final String CHUCK_RANDOM = "Chuck Norris";
-    private static final String CHUCK_CATEGORY = "Chuck Norris per categoria";
-    private static final String DAD_JOKE = "Dad Joke";
-    private static final String USELESS_FACT = "Useless Fact";
+    private static final String RANDOM_CATEGORY = "Casuale";
 
     private final Config config = Config.load();
     private final ChuckNorrisService chuckNorrisService = new ChuckNorrisService();
@@ -52,165 +50,135 @@ public class MainFrame {
     private final DeepLService deepLService = new DeepLService(config);
     private final ObservableList<HistoryEntry> history = FXCollections.observableArrayList();
 
-    private final ComboBox<String> sourceCombo = new ComboBox<>();
+    private final ToggleGroup navigationGroup = new ToggleGroup();
+    private final ToggleButton chuckButton = createNavButton("Chuck Norris", ApiScreen.CHUCK);
+    private final ToggleButton dadButton = createNavButton("Dad Joke", ApiScreen.DAD_JOKE);
+    private final ToggleButton factButton = createNavButton("Facts", ApiScreen.USELESS_FACT);
+    private final ToggleButton historyNavButton = createNavButton("Cronologia", ApiScreen.HISTORY);
+
     private final ComboBox<String> categoryCombo = new ComboBox<>();
     private final Button generateButton = new Button("Genera");
-    private final Button retryTranslateButton = new Button("Riprova traduzione");
-    private final Button copyOriginalButton = new Button("Copia originale");
-    private final Button copyTranslationButton = new Button("Copia traduzione");
-    private final Button historyButton = new Button("↺");
-    private final Label sourceBadge = new Label("Nuovo post");
-    private final Label typeBadge = new Label("Scegli una sorgente");
-    private final Label originalTextLabel = createBodyLabel("Genera un contenuto per creare una card pronta da condividere.");
-    private final Label translationTextLabel = createBodyLabel("La traduzione apparira qui quando disponibile.");
-    private final Label translationStatusLabel = new Label("Traduzione automatica per Chuck Norris e Useless Fact");
-    private final Label statusLabel = new Label("Pronto");
-    private final VBox translationCard = new VBox(8);
-    private final TableView<HistoryEntry> historyTable = new TableView<>();
-    private final Popup historyPopup = new Popup();
+    private final Button copyButton = new Button("Copia");
+    private final Button toggleOriginalButton = new Button("Visualizza originale");
 
+    private final Label screenTitleLabel = new Label();
+    private final Label screenSubtitleLabel = new Label();
+    private final Label resultTitleLabel = new Label("Traduzione");
+    private final Label resultTextLabel = createBodyLabel("");
+    private final Label statusLabel = new Label("Pronto");
+    private final VBox categoryPicker = new VBox(6);
+    private final VBox contentView = new VBox(16);
+    private final VBox historyView = new VBox(12);
+    private final TableView<HistoryEntry> historyTable = new TableView<>();
+
+    private BorderPane root;
+    private ApiScreen currentScreen = ApiScreen.CHUCK;
     private JokeResult currentResult;
     private String currentTranslation = "";
+    private boolean showingOriginal;
 
     public void show(Stage stage) {
         configureControls();
         configureHistoryTable();
         loadChuckCategories();
 
-        BorderPane root = new BorderPane();
-        root.getStyleClass().add("app-root");
-        root.setTop(createHeader());
-        root.setCenter(createFeedScroll());
+        root = new BorderPane();
+        root.getStyleClass().addAll("app-root", currentScreen.themeClass);
+        root.setLeft(createSideNav());
+        root.setCenter(createCenter());
 
-        Scene scene = new Scene(root, 1120, 800);
+        Scene scene = new Scene(root, 1040, 720);
         URL stylesheet = MainFrame.class.getResource("/styles/app.css");
         if (stylesheet != null) {
             scene.getStylesheets().add(stylesheet.toExternalForm());
         }
 
         stage.setTitle("Chuck & Facts");
-        stage.setMinWidth(940);
-        stage.setMinHeight(700);
+        stage.setMinWidth(900);
+        stage.setMinHeight(620);
         stage.setScene(scene);
         stage.show();
+        showScreen(ApiScreen.CHUCK);
     }
 
     private void configureControls() {
-        sourceCombo.setItems(FXCollections.observableArrayList(CHUCK_RANDOM, CHUCK_CATEGORY, DAD_JOKE, USELESS_FACT));
-        sourceCombo.getSelectionModel().select(CHUCK_RANDOM);
-        sourceCombo.valueProperty().addListener((obs, oldValue, newValue) -> updateCategoryState());
-        sourceCombo.getStyleClass().add("combo-modern");
-        sourceCombo.setPrefWidth(215);
-
         categoryCombo.setPromptText("Categoria");
         categoryCombo.getStyleClass().add("combo-modern");
-        categoryCombo.setPrefWidth(180);
-        categoryCombo.setDisable(true);
+        categoryCombo.setMaxWidth(Double.MAX_VALUE);
 
         generateButton.getStyleClass().addAll("button-primary", "action-button");
-        retryTranslateButton.getStyleClass().addAll("button-secondary", "action-button");
-        copyOriginalButton.getStyleClass().addAll("button-ghost", "action-button");
-        copyTranslationButton.getStyleClass().addAll("button-ghost", "action-button");
-        historyButton.getStyleClass().addAll("icon-button", "action-button");
-
-        generateButton.setTooltip(new Tooltip("Recupera un contenuto e prepara la card"));
-        retryTranslateButton.setTooltip(new Tooltip("Riprova DeepL per contenuti traducibili"));
-        historyButton.setTooltip(new Tooltip("Mostra cronologia"));
+        copyButton.getStyleClass().addAll("button-ghost", "action-button");
+        toggleOriginalButton.getStyleClass().addAll("button-ghost", "action-button");
+        statusLabel.getStyleClass().add("status-pill");
 
         generateButton.setOnAction(event -> generateContent());
-        retryTranslateButton.setOnAction(event -> retryTranslation());
-        copyOriginalButton.setOnAction(event -> copyText(currentResult == null ? "" : currentResult.originalText(), "Originale copiato"));
-        copyTranslationButton.setOnAction(event -> copyText(currentTranslation, "Traduzione copiata"));
-        historyButton.setOnAction(event -> toggleHistoryPopup());
-
-        retryTranslateButton.setDisable(true);
-        copyOriginalButton.setDisable(true);
-        copyTranslationButton.setDisable(true);
-
-        sourceBadge.getStyleClass().add("badge-source");
-        typeBadge.getStyleClass().add("badge-soft");
-        translationStatusLabel.getStyleClass().add("section-note");
-        statusLabel.getStyleClass().add("status-pill");
+        copyButton.setOnAction(event -> copyText(displayedText()));
+        toggleOriginalButton.setOnAction(event -> toggleOriginal());
+        generateButton.setTooltip(new Tooltip("Genera un nuovo contenuto"));
+        copyButton.setTooltip(new Tooltip("Copia il testo visibile"));
+        toggleOriginalButton.setTooltip(new Tooltip("Alterna tra traduzione e originale"));
+        setBusy(false, "Pronto");
     }
 
-    private HBox createHeader() {
-        Label title = new Label("Chuck & Facts");
-        title.getStyleClass().add("app-title");
+    private VBox createSideNav() {
+        Label appName = new Label("Chuck & Facts");
+        appName.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("Crea contenuti brevi, traducibili e pronti per una chat social.");
-        subtitle.getStyleClass().add("app-subtitle");
+        VBox navButtons = new VBox(8, chuckButton, dadButton, factButton, historyNavButton);
+        navButtons.setFillWidth(true);
 
-        VBox titleBlock = new VBox(3, title, subtitle);
-        titleBlock.setAlignment(Pos.CENTER_LEFT);
+        Region spacer = new Region();
+        VBox.setVgrow(spacer, Priority.ALWAYS);
 
-        HBox controls = new HBox(10, sourceCombo, categoryCombo, generateButton, historyButton);
-        controls.setAlignment(Pos.CENTER_RIGHT);
+        VBox sideNav = new VBox(18, appName, navButtons, spacer);
+        sideNav.getStyleClass().add("side-nav");
+        return sideNav;
+    }
+
+    private StackPane createCenter() {
+        contentView.getStyleClass().add("screen-scroll-content");
+        contentView.getChildren().addAll(createControlsPanel(), createResultPanel());
+
+        ScrollPane contentScroll = new ScrollPane(contentView);
+        contentScroll.setFitToWidth(true);
+        contentScroll.getStyleClass().add("feed-scroll");
+
+        historyView.getStyleClass().add("history-screen");
+        historyView.getChildren().addAll(createHistoryHeader(), historyTable);
+        VBox.setVgrow(historyTable, Priority.ALWAYS);
+
+        StackPane centerStack = new StackPane(contentScroll, historyView);
+        centerStack.getStyleClass().add("center-stack");
+        return centerStack;
+    }
+
+    private VBox createControlsPanel() {
+        screenTitleLabel.getStyleClass().add("screen-title");
+        screenSubtitleLabel.getStyleClass().add("screen-subtitle");
+        screenSubtitleLabel.setWrapText(true);
+
+        Label categoryLabel = new Label("Categoria");
+        categoryLabel.getStyleClass().add("field-label");
+        categoryPicker.getChildren().addAll(categoryLabel, categoryCombo);
+        categoryPicker.getStyleClass().add("category-picker");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox header = new HBox(18, titleBlock, spacer, controls);
-        header.getStyleClass().add("top-bar");
-        header.setAlignment(Pos.CENTER_LEFT);
-        return header;
+        HBox actionRow = new HBox(12, categoryPicker, spacer, generateButton, toggleOriginalButton, copyButton, statusLabel);
+        actionRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox controls = new VBox(16, screenTitleLabel, screenSubtitleLabel, actionRow);
+        controls.getStyleClass().add("panel");
+        return controls;
     }
 
-    private ScrollPane createFeedScroll() {
-        VBox feed = new VBox(16);
-        feed.setAlignment(Pos.TOP_CENTER);
-        feed.getStyleClass().add("feed-wrap");
-        feed.getChildren().add(createPostCard());
+    private VBox createResultPanel() {
+        resultTitleLabel.getStyleClass().add("section-title");
 
-        ScrollPane scrollPane = new ScrollPane(feed);
-        scrollPane.setFitToWidth(true);
-        scrollPane.getStyleClass().add("feed-scroll");
-        return scrollPane;
-    }
-
-    private VBox createPostCard() {
-        Label handle = new Label("@chuckandfacts");
-        handle.getStyleClass().add("handle");
-
-        HBox badges = new HBox(8, sourceBadge, typeBadge);
-        badges.setAlignment(Pos.CENTER_LEFT);
-
-        VBox identity = new VBox(4, handle, badges);
-        identity.setAlignment(Pos.CENTER_LEFT);
-
-        HBox postHeader = new HBox(identity);
-        postHeader.setAlignment(Pos.CENTER_LEFT);
-
-        VBox originalCard = createSection("Originale", originalTextLabel);
-        translationCard.getStyleClass().addAll("mini-card", "translation-card");
-        translationCard.getChildren().addAll(createSectionHeader("Traduzione"), translationStatusLabel, translationTextLabel);
-
-        HBox primaryActions = new HBox(10, retryTranslateButton);
-        primaryActions.setAlignment(Pos.CENTER_LEFT);
-
-        HBox copyActions = new HBox(10, copyOriginalButton, copyTranslationButton);
-        copyActions.setAlignment(Pos.CENTER_LEFT);
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox statusRow = new HBox(12, primaryActions, spacer, copyActions, statusLabel);
-        statusRow.setAlignment(Pos.CENTER_LEFT);
-
-        VBox post = new VBox(16, postHeader, originalCard, translationCard, statusRow);
-        post.getStyleClass().add("post-card");
-        post.setMaxWidth(880);
-        return post;
-    }
-
-    private VBox createSection(String title, Label body) {
-        VBox section = new VBox(8, createSectionHeader(title), body);
-        section.getStyleClass().add("mini-card");
-        return section;
-    }
-
-    private Label createSectionHeader(String title) {
-        Label label = new Label(title);
-        label.getStyleClass().add("section-title");
-        return label;
+        VBox result = new VBox(10, resultTitleLabel, resultTextLabel);
+        result.getStyleClass().add("result-panel");
+        return result;
     }
 
     private Label createBodyLabel(String text) {
@@ -220,16 +188,13 @@ public class MainFrame {
         return label;
     }
 
-    private VBox createHistoryPanel() {
+    private VBox createHistoryHeader() {
         Label title = new Label("Cronologia");
-        title.getStyleClass().add("history-title");
-        historyTable.setPrefHeight(320);
-        historyTable.setPrefWidth(780);
+        title.getStyleClass().add("screen-title");
 
-        VBox bottom = new VBox(8, title, historyTable);
-        bottom.getStyleClass().add("history-panel");
-        VBox.setVgrow(historyTable, Priority.ALWAYS);
-        return bottom;
+        VBox header = new VBox(6, title);
+        header.getStyleClass().add("panel");
+        return header;
     }
 
     private void configureHistoryTable() {
@@ -239,57 +204,84 @@ public class MainFrame {
 
         TableColumn<HistoryEntry, String> sourceColumn = new TableColumn<>("Fonte");
         sourceColumn.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().source()));
-        sourceColumn.setPrefWidth(140);
+        sourceColumn.setPrefWidth(180);
 
-        TableColumn<HistoryEntry, String> originalColumn = new TableColumn<>("Testo originale");
+        TableColumn<HistoryEntry, String> originalColumn = new TableColumn<>("Testo");
         originalColumn.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().originalText()));
-        originalColumn.setPrefWidth(330);
-
-        TableColumn<HistoryEntry, String> translationColumn = new TableColumn<>("Traduzione");
-        translationColumn.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().translation()));
-        translationColumn.setPrefWidth(300);
+        originalColumn.setPrefWidth(650);
 
         historyTable.setItems(history);
-        historyTable.getColumns().addAll(Arrays.asList(dateColumn, sourceColumn, originalColumn, translationColumn));
+        historyTable.getColumns().addAll(Arrays.asList(dateColumn, sourceColumn, originalColumn));
         historyTable.getStyleClass().add("history-table");
+    }
 
-        historyPopup.setAutoHide(true);
-        historyPopup.getContent().add(createHistoryPanel());
+    private ToggleButton createNavButton(String text, ApiScreen screen) {
+        ToggleButton button = new ToggleButton(text);
+        button.setToggleGroup(navigationGroup);
+        button.setMaxWidth(Double.MAX_VALUE);
+        button.getStyleClass().add("nav-button");
+        button.setOnAction(event -> showScreen(screen));
+        return button;
     }
 
     private void loadChuckCategories() {
         runAsync(chuckNorrisService::getCategories, categories -> {
-            categoryCombo.setItems(FXCollections.observableArrayList(categories));
-            if (!categories.isEmpty()) {
-                categoryCombo.getSelectionModel().selectFirst();
-            }
-            updateCategoryState();
-        }, "Categorie caricate");
+            ObservableList<String> items = FXCollections.observableArrayList();
+            items.add(RANDOM_CATEGORY);
+            items.addAll(categories);
+            categoryCombo.setItems(items);
+            categoryCombo.getSelectionModel().selectFirst();
+        }, "Pronto");
     }
 
-    private void updateCategoryState() {
-        boolean categoryMode = CHUCK_CATEGORY.equals(sourceCombo.getValue());
-        categoryCombo.setDisable(!categoryMode || categoryCombo.getItems().isEmpty());
+    private void showScreen(ApiScreen screen) {
+        currentScreen = screen;
+        currentResult = null;
+        currentTranslation = "";
+        showingOriginal = false;
+
+        if (root != null) {
+            root.getStyleClass().removeAll(ApiScreen.themeClasses());
+            root.getStyleClass().add(screen.themeClass);
+        }
+
+        ToggleButton selectedButton = switch (screen) {
+            case CHUCK -> chuckButton;
+            case DAD_JOKE -> dadButton;
+            case USELESS_FACT -> factButton;
+            case HISTORY -> historyNavButton;
+        };
+        selectedButton.setSelected(true);
+
+        boolean historyScreen = screen == ApiScreen.HISTORY;
+        contentView.setVisible(!historyScreen);
+        contentView.setManaged(!historyScreen);
+        historyView.setVisible(historyScreen);
+        historyView.setManaged(historyScreen);
+        if (historyScreen) {
+            return;
+        }
+
+        screenTitleLabel.setText(screen.title);
+        screenSubtitleLabel.setText(screen.subtitle);
+        generateButton.setText(screen.generateText);
+        resultTextLabel.setText(screen.placeholderText);
+        resultTitleLabel.setText("Traduzione");
+        toggleOriginalButton.setText("Visualizza originale");
+
+        boolean chuckScreen = screen == ApiScreen.CHUCK;
+        categoryPicker.setVisible(chuckScreen);
+        categoryPicker.setManaged(chuckScreen);
+        categoryCombo.setDisable(!chuckScreen || categoryCombo.getItems().isEmpty());
+        setBusy(false, "Pronto");
     }
 
     private void generateContent() {
-        Supplier<JokeResult> supplier = selectedSupplier();
-        setBusy(true, "Recupero contenuto...");
+        setBusy(true, "Caricamento...");
 
-        CompletableFuture.supplyAsync(supplier)
-                .thenCompose(result -> {
-                    if (!result.supportsTranslation()) {
-                        return CompletableFuture.completedFuture(new GeneratedContent(result, "Non prevista", false));
-                    }
-                    return CompletableFuture.supplyAsync(() -> translateOrFallback(result));
-                })
-                .thenAccept(content -> Platform.runLater(() -> {
-                    currentResult = content.result();
-                    currentTranslation = content.translation();
-                    renderContent(content);
-                    addHistory(currentTranslation);
-                    setBusy(false, content.translationFallback() ? "Contenuto generato, traduzione non disponibile" : "Contenuto generato");
-                }))
+        CompletableFuture.supplyAsync(selectedSupplier())
+                .thenCompose(result -> CompletableFuture.supplyAsync(() -> translateResult(result)))
+                .thenAccept(content -> Platform.runLater(() -> renderGeneratedContent(content)))
                 .exceptionally(ex -> {
                     Platform.runLater(() -> {
                         setBusy(false, "Errore");
@@ -300,88 +292,72 @@ public class MainFrame {
     }
 
     private Supplier<JokeResult> selectedSupplier() {
-        return switch (sourceCombo.getValue()) {
-            case CHUCK_CATEGORY -> () -> chuckNorrisService.getRandomJokeByCategory(categoryCombo.getValue());
+        return switch (currentScreen) {
             case DAD_JOKE -> dadJokeService::getRandomJoke;
             case USELESS_FACT -> uselessFactService::getRandomFact;
+            case CHUCK -> this::getChuckResult;
             default -> chuckNorrisService::getRandomJoke;
         };
     }
 
-    private GeneratedContent translateOrFallback(JokeResult result) {
+    private JokeResult getChuckResult() {
+        String category = categoryCombo.getValue();
+        if (category == null || category.isBlank() || RANDOM_CATEGORY.equals(category)) {
+            return chuckNorrisService.getRandomJoke();
+        }
+        return chuckNorrisService.getRandomJokeByCategory(category);
+    }
+
+    private GeneratedContent translateResult(JokeResult result) {
+        if (currentScreen == ApiScreen.DAD_JOKE) {
+            return new GeneratedContent(result, result.originalText(), true);
+        }
         try {
-            String translation = deepLService.translateToItalian(result.originalText());
-            return new GeneratedContent(result, translation, false);
+            return new GeneratedContent(result, deepLService.translateToItalian(result.originalText()), false);
         } catch (RuntimeException ex) {
             return new GeneratedContent(result, result.originalText(), true);
         }
     }
 
-    private void renderContent(GeneratedContent content) {
-        JokeResult result = content.result();
-        sourceBadge.setText(result.source());
-        typeBadge.setText(result.contentType());
-        originalTextLabel.setText(result.originalText());
+    private void renderGeneratedContent(GeneratedContent content) {
+        currentResult = content.result();
+        currentTranslation = content.translation();
+        boolean originalOnly = !currentResult.supportsTranslation() || content.translationFallback();
+        showingOriginal = originalOnly;
 
-        boolean translatable = result.supportsTranslation();
-        translationCard.setManaged(translatable);
-        translationCard.setVisible(translatable);
-        retryTranslateButton.setVisible(translatable);
-        retryTranslateButton.setManaged(translatable);
-        retryTranslateButton.setDisable(!translatable);
-        copyTranslationButton.setVisible(translatable);
-        copyTranslationButton.setManaged(translatable);
+        resultTitleLabel.setText(showingOriginal ? "Originale" : "Traduzione");
+        resultTextLabel.setText(showingOriginal ? currentResult.originalText() : currentTranslation);
+        toggleOriginalButton.setText("Visualizza originale");
+        toggleOriginalButton.setDisable(originalOnly);
 
-        if (translatable) {
-            translationTextLabel.setText(content.translation());
-            translationStatusLabel.setText(content.translationFallback()
-                    ? "Traduzione non disponibile: mostro il testo originale."
-                    : "Traduzione automatica DeepL");
-        } else {
-            translationTextLabel.setText("");
-            translationStatusLabel.setText("Traduzione non prevista per Dad Joke");
-        }
-
-        copyOriginalButton.setDisable(false);
-        copyTranslationButton.setDisable(!translatable || currentTranslation.isBlank());
+        addHistory();
+        setBusy(false, currentResult.supportsTranslation() && content.translationFallback() ? "Traduzione non disponibile" : "Generato");
     }
 
-    private void retryTranslation() {
-        if (!hasCurrentResult() || !currentResult.supportsTranslation()) {
+    private void toggleOriginal() {
+        if (currentResult == null || currentTranslation.isBlank()) {
             return;
         }
-        setBusy(true, "Riprovo DeepL...");
-        CompletableFuture.supplyAsync(() -> translateOrFallback(currentResult))
-                .thenAccept(content -> Platform.runLater(() -> {
-                    currentTranslation = content.translation();
-                    translationTextLabel.setText(content.translation());
-                    translationStatusLabel.setText(content.translationFallback()
-                            ? "Traduzione non disponibile: mostro il testo originale."
-                            : "Traduzione automatica DeepL");
-                    copyTranslationButton.setDisable(currentTranslation.isBlank());
-                    addHistory(currentTranslation);
-                    setBusy(false, content.translationFallback() ? "Traduzione non disponibile" : "Traduzione aggiornata");
-                }))
-                .exceptionally(ex -> {
-                    Platform.runLater(() -> setBusy(false, "Traduzione non disponibile"));
-                    return null;
-                });
+
+        showingOriginal = !showingOriginal;
+        resultTitleLabel.setText(showingOriginal ? "Originale" : "Traduzione");
+        resultTextLabel.setText(showingOriginal ? currentResult.originalText() : currentTranslation);
+        toggleOriginalButton.setText(showingOriginal ? "Visualizza traduzione" : "Visualizza originale");
     }
 
-    private boolean hasCurrentResult() {
-        if (currentResult != null) {
-            return true;
+    private String displayedText() {
+        if (currentResult == null) {
+            return "";
         }
-        showError("Genera prima un contenuto.");
-        return false;
+        return showingOriginal ? currentResult.originalText() : currentTranslation;
     }
 
-    private void addHistory(String translation) {
+    private void addHistory() {
         if (currentResult == null) {
             return;
         }
         String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
-        history.add(0, new HistoryEntry(now, currentResult.source(), currentResult.originalText(), translation));
+        history.add(0, new HistoryEntry(now, currentResult.source(), displayedText(), currentResult.originalText()));
     }
 
     private <T> void runAsync(Supplier<T> supplier, java.util.function.Consumer<T> onSuccess, String successMessage) {
@@ -399,7 +375,7 @@ public class MainFrame {
                 });
     }
 
-    private void copyText(String value, String successMessage) {
+    private void copyText(String value) {
         if (value == null || value.isBlank()) {
             statusLabel.setText("Niente da copiare");
             return;
@@ -407,22 +383,13 @@ public class MainFrame {
         ClipboardContent content = new ClipboardContent();
         content.putString(value);
         Clipboard.getSystemClipboard().setContent(content);
-        statusLabel.setText(successMessage);
-    }
-
-    private void toggleHistoryPopup() {
-        if (historyPopup.isShowing()) {
-            historyPopup.hide();
-            return;
-        }
-        historyPopup.show(historyButton, -760, 42);
+        statusLabel.setText("Copiato");
     }
 
     private void setBusy(boolean busy, String status) {
-        generateButton.setDisable(busy);
-        retryTranslateButton.setDisable(busy || currentResult == null || !currentResult.supportsTranslation());
-        copyOriginalButton.setDisable(busy || currentResult == null);
-        copyTranslationButton.setDisable(busy || currentResult == null || !currentResult.supportsTranslation() || currentTranslation.isBlank());
+        generateButton.setDisable(busy || currentScreen == ApiScreen.HISTORY);
+        copyButton.setDisable(busy || currentResult == null);
+        toggleOriginalButton.setDisable(busy || currentResult == null || currentTranslation.isBlank() || currentTranslation.equals(currentResult.originalText()));
         statusLabel.setText(status);
     }
 
@@ -441,6 +408,57 @@ public class MainFrame {
             return "Errore: impossibile completare l'operazione.";
         }
         return message.startsWith("Errore:") ? message : "Errore: " + message;
+    }
+
+    private enum ApiScreen {
+        CHUCK(
+                "chuck-theme",
+                "Chuck Norris",
+                "Genera una battuta casuale oppure scegli una categoria.",
+                "Genera Chuck",
+                "Scegli una categoria o lascia Casuale, poi genera una battuta."
+        ),
+        DAD_JOKE(
+                "dad-theme",
+                "Dad Joke",
+                "Battute rapide da copiare.",
+                "Genera Dad Joke",
+                "Premi Genera Dad Joke per ottenere una battuta."
+        ),
+        USELESS_FACT(
+                "fact-theme",
+                "Useless Fact",
+                "Fatti curiosi e inutili.",
+                "Genera Fact",
+                "Premi Genera Fact per ottenere un fatto curioso."
+        ),
+        HISTORY(
+                "history-theme",
+                "Cronologia",
+                "",
+                "",
+                ""
+        );
+
+        private final String themeClass;
+        private final String title;
+        private final String subtitle;
+        private final String generateText;
+        private final String placeholderText;
+
+        ApiScreen(String themeClass, String title, String subtitle, String generateText, String placeholderText) {
+            this.themeClass = themeClass;
+            this.title = title;
+            this.subtitle = subtitle;
+            this.generateText = generateText;
+            this.placeholderText = placeholderText;
+        }
+
+        private static String[] themeClasses() {
+            return Arrays.stream(values())
+                    .map(screen -> screen.themeClass)
+                    .toArray(String[]::new);
+        }
     }
 
     private record GeneratedContent(JokeResult result, String translation, boolean translationFallback) {
