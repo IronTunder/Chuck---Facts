@@ -18,6 +18,7 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.image.Image;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -94,6 +95,10 @@ public class MainFrame {
         }
 
         stage.setTitle("Chuck & Facts");
+        URL icon = MainFrame.class.getResource("/icons/app-icon.png");
+        if (icon != null) {
+            stage.getIcons().add(new Image(icon.toExternalForm()));
+        }
         stage.setMinWidth(900);
         stage.setMinHeight(620);
         stage.setScene(scene);
@@ -421,7 +426,7 @@ public class MainFrame {
         DAD_JOKE(
                 "dad-theme",
                 "Dad Joke",
-                "Battute rapide da copiare.",
+                "Freddure divertenti, o forse no.",
                 "Genera Dad Joke",
                 "Premi Genera Dad Joke per ottenere una battuta."
         ),
