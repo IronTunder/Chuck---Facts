@@ -18,10 +18,10 @@ class ConfigTest {
     @Test
     void readsPropertyValue() {
         Properties properties = new Properties();
-        properties.setProperty("DEEPL_API_KEY", "test-key");
+        properties.setProperty("DEEPSEEK_API_KEY", "test-key");
 
         Config config = new Config(properties);
 
-        assertEquals("test-key", config.get("DEEPL_API_KEY").orElseThrow());
+        assertEquals("test-key", config.get("DEEPSEEK_API_KEY").orElseThrow());
     }
 }

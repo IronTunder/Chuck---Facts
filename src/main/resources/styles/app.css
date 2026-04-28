@@ -6,6 +6,7 @@
     -app-soft: #fee2e2;
 }
 
+/* Ogni schermata cambia solo le variabili colore usate dai controlli comuni. */
 .chuck-theme {
     -fx-background-color: #fff7ed;
     -app-accent: #dc2626;
@@ -34,6 +35,7 @@
     -app-soft: #e0e7ff;
 }
 
+/* Navigazione laterale stabile: resta indipendente dal contenuto centrale. */
 .side-nav {
     -fx-pref-width: 220px;
     -fx-padding: 28 18 22 18;
@@ -79,9 +81,14 @@
     -fx-background-color: transparent;
 }
 
+/* Padding generale delle viste; la cronologia lo riduce per mostrare piu' righe. */
 .screen-scroll-content,
 .history-screen {
     -fx-padding: 30;
+}
+
+.history-screen {
+    -fx-padding: 18 22 22 22;
 }
 
 .panel,
@@ -123,6 +130,7 @@
     -fx-padding: 4 6 4 6;
 }
 
+/* Testo del risultato: piu' grande della UI, per dare priorita' al contenuto generato. */
 .body-copy {
     -fx-font-size: 20px;
     -fx-line-spacing: 3px;
@@ -166,16 +174,36 @@
     -fx-background-color: #e2e8f0;
 }
 
+/* Toggle traduzione discreto, posizionato sotto al testo anziche' nella toolbar. */
+.translation-toggle {
+    -fx-background-color: transparent;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 4 8 4 8;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #64748b;
+    -fx-cursor: hand;
+}
+
+.translation-toggle:hover {
+    -fx-background-color: #f8fafc;
+    -fx-text-fill: #334155;
+}
+
 .button:disabled,
 .combo-box:disabled {
     -fx-opacity: 0.48;
 }
 
+/* Cronologia compatta: il testo completo si apre con doppio clic sul popup. */
 .history-table {
     -fx-background-color: white;
     -fx-background-radius: 8;
     -fx-border-radius: 8;
     -fx-border-color: #e5e7eb;
+    -fx-font-size: 12px;
 }
 
 .history-table .column-header-background {
@@ -191,6 +219,7 @@
 .history-table .table-row-cell {
     -fx-background-color: white;
     -fx-border-color: transparent transparent #f1f5f9 transparent;
+    -fx-cell-size: 34px;
 }
 
 .history-table .table-row-cell:selected {

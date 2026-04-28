@@ -20,6 +20,7 @@ public class DadJokeService {
     }
 
     public JokeResult getRandomJoke() {
+        // Questo servizio richiede esplicitamente JSON, altrimenti risponde con HTML/testo.
         DadJokeResponse response = httpUtil.getJson(URL, DadJokeResponse.class, Map.of(
                 "Accept", "application/json",
                 "User-Agent", "Chuck & Facts"

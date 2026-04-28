@@ -12,12 +12,15 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.MouseButton;
 import javafx.scene.image.Image;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -30,7 +33,7 @@ import model.HistoryEntry;
 import model.JokeResult;
 import service.ChuckNorrisService;
 import service.DadJokeService;
-import service.DeepLService;
+import service.DeepSeekService;
 import service.UselessFactService;
 import util.Config;
 
@@ -48,7 +51,7 @@ public class MainFrame {
     private final ChuckNorrisService chuckNorrisService = new ChuckNorrisService();
     private final DadJokeService dadJokeService = new DadJokeService();
     private final UselessFactService uselessFactService = new UselessFactService();
-    private final DeepLService deepLService = new DeepLService(config);
+    private final DeepSeekService deepSeekService = new DeepSeekService(config);
     private final ObservableList<HistoryEntry> history = FXCollections.observableArrayList();
 
     private final ToggleGroup navigationGroup = new ToggleGroup();
@@ -99,6 +102,8 @@ public class MainFrame {
         if (icon != null) {
             stage.getIcons().add(new Image(icon.toExternalForm()));
         }
+        stage.setMaxWidth(1040);
+        stage.setMaxHeight(720);
         stage.setMinWidth(900);
         stage.setMinHeight(620);
         stage.setScene(scene);
@@ -113,7 +118,7 @@ public class MainFrame {
 
         generateButton.getStyleClass().addAll("button-primary", "action-button");
         copyButton.getStyleClass().addAll("button-ghost", "action-button");
-        toggleOriginalButton.getStyleClass().addAll("button-ghost", "action-button");
+        toggleOriginalButton.getStyleClass().addAll("button-ghost", "translation-toggle");
         statusLabel.getStyleClass().add("status-pill");
 
         generateButton.setOnAction(event -> generateContent());
@@ -141,6 +146,7 @@ public class MainFrame {
     }
 
     private StackPane createCenter() {
+        // StackPane permette di alternare contenuto principale e cronologia senza ricreare la scena.
         contentView.getStyleClass().add("screen-scroll-content");
         contentView.getChildren().addAll(createControlsPanel(), createResultPanel());
 
@@ -170,7 +176,7 @@ public class MainFrame {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox actionRow = new HBox(12, categoryPicker, spacer, generateButton, toggleOriginalButton, copyButton, statusLabel);
+        HBox actionRow = new HBox(12, categoryPicker, spacer, generateButton, copyButton, statusLabel);
         actionRow.setAlignment(Pos.CENTER_LEFT);
 
         VBox controls = new VBox(16, screenTitleLabel, screenSubtitleLabel, actionRow);
@@ -181,7 +187,10 @@ public class MainFrame {
     private VBox createResultPanel() {
         resultTitleLabel.getStyleClass().add("section-title");
 
-        VBox result = new VBox(10, resultTitleLabel, resultTextLabel);
+        VBox textArea = new VBox(8, resultTextLabel, toggleOriginalButton);
+        textArea.setAlignment(Pos.BOTTOM_LEFT);
+
+        VBox result = new VBox(10, resultTitleLabel, textArea);
         result.getStyleClass().add("result-panel");
         return result;
     }
@@ -203,21 +212,35 @@ public class MainFrame {
     }
 
     private void configureHistoryTable() {
+        // La cronologia resta compatta: la colonna grande mostra solo un'anteprima.
         TableColumn<HistoryEntry, String> dateColumn = new TableColumn<>("Data/Ora");
         dateColumn.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().dateTime()));
-        dateColumn.setPrefWidth(145);
+        dateColumn.setPrefWidth(125);
 
         TableColumn<HistoryEntry, String> sourceColumn = new TableColumn<>("Fonte");
         sourceColumn.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().source()));
-        sourceColumn.setPrefWidth(180);
+        sourceColumn.setPrefWidth(135);
 
-        TableColumn<HistoryEntry, String> originalColumn = new TableColumn<>("Testo");
+        TableColumn<HistoryEntry, String> originalColumn = new TableColumn<>("Anteprima");
         originalColumn.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().originalText()));
-        originalColumn.setPrefWidth(650);
+        originalColumn.setPrefWidth(520);
+        originalColumn.setCellFactory(column -> new CompactHistoryCell());
 
         historyTable.setItems(history);
         historyTable.getColumns().addAll(Arrays.asList(dateColumn, sourceColumn, originalColumn));
         historyTable.getStyleClass().add("history-table");
+        historyTable.setFixedCellSize(34);
+        historyTable.setRowFactory(table -> {
+            TableRow<HistoryEntry> row = new TableRow<>();
+            row.setTooltip(new Tooltip("Doppio clic per leggere il testo completo"));
+            // Il popup evita di allargare la tabella quando il contenuto e' lungo.
+            row.setOnMouseClicked(event -> {
+                if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
+                    showHistoryEntry(row.getItem());
+                }
+            });
+            return row;
+        });
     }
 
     private ToggleButton createNavButton(String text, ApiScreen screen) {
@@ -240,6 +263,7 @@ public class MainFrame {
     }
 
     private void showScreen(ApiScreen screen) {
+        // Ogni cambio sezione riparte da uno stato pulito per evitare contenuti vecchi.
         currentScreen = screen;
         currentResult = null;
         currentTranslation = "";
@@ -259,6 +283,7 @@ public class MainFrame {
         selectedButton.setSelected(true);
 
         boolean historyScreen = screen == ApiScreen.HISTORY;
+        // Le due viste sono nello stesso StackPane: managed=false libera spazio nel layout.
         contentView.setVisible(!historyScreen);
         contentView.setManaged(!historyScreen);
         historyView.setVisible(historyScreen);
@@ -273,6 +298,7 @@ public class MainFrame {
         resultTextLabel.setText(screen.placeholderText);
         resultTitleLabel.setText("Traduzione");
         toggleOriginalButton.setText("Visualizza originale");
+        setToggleOriginalButtonVisible(false);
 
         boolean chuckScreen = screen == ApiScreen.CHUCK;
         categoryPicker.setVisible(chuckScreen);
@@ -284,6 +310,7 @@ public class MainFrame {
     private void generateContent() {
         setBusy(true, "Caricamento...");
 
+    
         CompletableFuture.supplyAsync(selectedSupplier())
                 .thenCompose(result -> CompletableFuture.supplyAsync(() -> translateResult(result)))
                 .thenAccept(content -> Platform.runLater(() -> renderGeneratedContent(content)))
@@ -297,6 +324,7 @@ public class MainFrame {
     }
 
     private Supplier<JokeResult> selectedSupplier() {
+        // Isola la scelta del provider: generateContent non deve conoscere i dettagli delle API.
         return switch (currentScreen) {
             case DAD_JOKE -> dadJokeService::getRandomJoke;
             case USELESS_FACT -> uselessFactService::getRandomFact;
@@ -318,7 +346,7 @@ public class MainFrame {
             return new GeneratedContent(result, result.originalText(), true);
         }
         try {
-            return new GeneratedContent(result, deepLService.translateToItalian(result.originalText()), false);
+            return new GeneratedContent(result, deepSeekService.translateToItalian(result.originalText()), false);
         } catch (RuntimeException ex) {
             return new GeneratedContent(result, result.originalText(), true);
         }
@@ -334,6 +362,7 @@ public class MainFrame {
         resultTextLabel.setText(showingOriginal ? currentResult.originalText() : currentTranslation);
         toggleOriginalButton.setText("Visualizza originale");
         toggleOriginalButton.setDisable(originalOnly);
+        setToggleOriginalButtonVisible(!originalOnly);
 
         addHistory();
         setBusy(false, currentResult.supportsTranslation() && content.translationFallback() ? "Traduzione non disponibile" : "Generato");
@@ -350,6 +379,11 @@ public class MainFrame {
         toggleOriginalButton.setText(showingOriginal ? "Visualizza traduzione" : "Visualizza originale");
     }
 
+    private void setToggleOriginalButtonVisible(boolean visible) {
+        toggleOriginalButton.setVisible(visible);
+        toggleOriginalButton.setManaged(visible);
+    }
+
     private String displayedText() {
         if (currentResult == null) {
             return "";
@@ -361,6 +395,7 @@ public class MainFrame {
         if (currentResult == null) {
             return;
         }
+        // Nuovi elementi in cima, cosi' la cronologia mostra subito l'ultima richiesta.
         String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
         history.add(0, new HistoryEntry(now, currentResult.source(), displayedText(), currentResult.originalText()));
     }
@@ -385,6 +420,7 @@ public class MainFrame {
             statusLabel.setText("Niente da copiare");
             return;
         }
+        // Usa la clipboard di sistema, quindi il testo e' disponibile anche fuori dall'app.
         ClipboardContent content = new ClipboardContent();
         content.putString(value);
         Clipboard.getSystemClipboard().setContent(content);
@@ -392,6 +428,7 @@ public class MainFrame {
     }
 
     private void setBusy(boolean busy, String status) {
+        // Stato unico per evitare click concorrenti durante chiamate HTTP/traduzione.
         generateButton.setDisable(busy || currentScreen == ApiScreen.HISTORY);
         copyButton.setDisable(busy || currentResult == null);
         toggleOriginalButton.setDisable(busy || currentResult == null || currentTranslation.isBlank() || currentTranslation.equals(currentResult.originalText()));
@@ -404,6 +441,35 @@ public class MainFrame {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    private void showHistoryEntry(HistoryEntry entry) {
+        // TextArea non editabile: selezionabile, copiabile e piu' comoda di un Label lungo.
+        TextArea textArea = new TextArea(entry.originalText());
+        textArea.setEditable(false);
+        textArea.setWrapText(true);
+        textArea.setPrefSize(620, 260);
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Testo completo");
+        alert.setHeaderText(entry.source() + " - " + entry.dateTime());
+        alert.getDialogPane().setContent(textArea);
+        alert.showAndWait();
+    }
+
+    private static class CompactHistoryCell extends javafx.scene.control.TableCell<HistoryEntry, String> {
+        private static final int PREVIEW_LIMIT = 115;
+
+        @Override
+        protected void updateItem(String text, boolean empty) {
+            super.updateItem(text, empty);
+            if (empty || text == null) {
+                setText(null);
+                return;
+            }
+            // L'anteprima mantiene l'altezza riga stabile; il testo completo e' nel popup.
+            setText(text.length() <= PREVIEW_LIMIT ? text : text.substring(0, PREVIEW_LIMIT - 3) + "...");
+        }
     }
 
     private String userMessage(Throwable throwable) {
