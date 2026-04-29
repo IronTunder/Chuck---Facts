@@ -1,9 +1,13 @@
 package gui;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
@@ -15,6 +19,7 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
@@ -29,6 +34,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 import model.HistoryEntry;
 import model.JokeResult;
 import service.ChuckNorrisService;
@@ -37,53 +43,101 @@ import service.DeepSeekService;
 import service.UselessFactService;
 import util.Config;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
+import java.lang.reflect.Type;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 public class MainFrame {
     private static final String RANDOM_CATEGORY = "Casuale";
+    private static final Path FAVORITES_FILE = Path.of(
+            System.getProperty("user.home"),
+            ".chuck-and-facts",
+            "favorites.json"
+    );
+    private static final Path GAME_HIGH_SCORE_FILE = Path.of(
+            System.getProperty("user.home"),
+            ".chuck-and-facts",
+            "fact-game-high-score.txt"
+    );
+    private static final double NEXT_QUESTION_DELAY_SECONDS = 1.5;
+    private static final double FALSE_FACT_REVEAL_DELAY_SECONDS = 4.0;
+    private static final Type HISTORY_ENTRY_LIST_TYPE = new TypeToken<List<HistoryEntry>>() {
+    }.getType();
 
+    private final Gson gson = new Gson();
+    private final Random random = new Random();
     private final Config config = Config.load();
     private final ChuckNorrisService chuckNorrisService = new ChuckNorrisService();
     private final DadJokeService dadJokeService = new DadJokeService();
     private final UselessFactService uselessFactService = new UselessFactService();
     private final DeepSeekService deepSeekService = new DeepSeekService(config);
     private final ObservableList<HistoryEntry> history = FXCollections.observableArrayList();
+    private final ObservableList<HistoryEntry> favorites = FXCollections.observableArrayList();
+    private final FilteredList<HistoryEntry> filteredHistory = new FilteredList<>(history, entry -> true);
 
     private final ToggleGroup navigationGroup = new ToggleGroup();
     private final ToggleButton chuckButton = createNavButton("Chuck Norris", ApiScreen.CHUCK);
     private final ToggleButton dadButton = createNavButton("Dad Joke", ApiScreen.DAD_JOKE);
     private final ToggleButton factButton = createNavButton("Facts", ApiScreen.USELESS_FACT);
+    private final ToggleButton gameNavButton = createNavButton("Vero/Falso", ApiScreen.FACT_GAME);
     private final ToggleButton historyNavButton = createNavButton("Cronologia", ApiScreen.HISTORY);
+    private final ToggleButton favoritesNavButton = createNavButton("Preferiti", ApiScreen.FAVORITES);
 
     private final ComboBox<String> categoryCombo = new ComboBox<>();
     private final Button generateButton = new Button("Genera");
     private final Button copyButton = new Button("Copia");
+    private final Button favoriteButton = new Button("🔖 Salva");
+    private final Button trueButton = new Button("Vero");
+    private final Button falseButton = new Button("Falso");
     private final Button toggleOriginalButton = new Button("Visualizza originale");
 
+    private final Label screenIconLabel = new Label();
     private final Label screenTitleLabel = new Label();
     private final Label screenSubtitleLabel = new Label();
     private final Label resultTitleLabel = new Label("Traduzione");
     private final Label resultTextLabel = createBodyLabel("");
+    private final Label gameScoreLabel = new Label("Punteggio: 0/0");
+    private final Label gameFeedbackLabel = createBodyLabel("");
     private final Label statusLabel = new Label("Pronto");
     private final VBox categoryPicker = new VBox(6);
     private final VBox contentView = new VBox(16);
     private final VBox historyView = new VBox(12);
+    private final VBox favoritesView = new VBox(12);
     private final TableView<HistoryEntry> historyTable = new TableView<>();
+    private final TableView<HistoryEntry> favoritesTable = new TableView<>();
+    private final TextField historySearchField = new TextField();
 
     private BorderPane root;
     private ApiScreen currentScreen = ApiScreen.CHUCK;
     private JokeResult currentResult;
     private String currentTranslation = "";
     private boolean showingOriginal;
+    private FactGameQuestion currentFactGameQuestion;
+    private int gameScore;
+    private int gameTotal;
+    private int gameHighScore;
+    private int gameRunId;
+    private boolean gameRunActive;
 
     public void show(Stage stage) {
         configureControls();
         configureHistoryTable();
+        configureFavoritesTable();
+        loadFavorites();
+        loadGameHighScore();
         loadChuckCategories();
 
         root = new BorderPane();
@@ -118,15 +172,31 @@ public class MainFrame {
 
         generateButton.getStyleClass().addAll("button-primary", "action-button");
         copyButton.getStyleClass().addAll("button-ghost", "action-button");
+        favoriteButton.getStyleClass().addAll("button-ghost", "favorite-button");
+        trueButton.getStyleClass().addAll("button-primary", "answer-button");
+        falseButton.getStyleClass().addAll("button-ghost", "answer-button");
         toggleOriginalButton.getStyleClass().addAll("button-ghost", "translation-toggle");
+        gameScoreLabel.getStyleClass().add("status-pill");
+        gameFeedbackLabel.getStyleClass().add("game-feedback");
         statusLabel.getStyleClass().add("status-pill");
 
         generateButton.setOnAction(event -> generateContent());
         copyButton.setOnAction(event -> copyText(displayedText()));
+        favoriteButton.setOnAction(event -> saveFavorite());
+        trueButton.setOnAction(event -> answerFactQuestion(true));
+        falseButton.setOnAction(event -> answerFactQuestion(false));
         toggleOriginalButton.setOnAction(event -> toggleOriginal());
         generateButton.setTooltip(new Tooltip("Genera un nuovo contenuto"));
         copyButton.setTooltip(new Tooltip("Copia il testo visibile"));
+        favoriteButton.setTooltip(new Tooltip("Salva nei preferiti"));
+        trueButton.setTooltip(new Tooltip("Rispondi vero"));
+        falseButton.setTooltip(new Tooltip("Rispondi falso"));
         toggleOriginalButton.setTooltip(new Tooltip("Alterna tra traduzione e originale"));
+
+        historySearchField.setPromptText("Cerca nella cronologia");
+        historySearchField.getStyleClass().add("search-field");
+        historySearchField.textProperty().addListener((observable, oldValue, newValue) -> applyHistoryFilter(newValue));
+
         setBusy(false, "Pronto");
     }
 
@@ -134,7 +204,7 @@ public class MainFrame {
         Label appName = new Label("Chuck & Facts");
         appName.getStyleClass().add("app-title");
 
-        VBox navButtons = new VBox(8, chuckButton, dadButton, factButton, historyNavButton);
+        VBox navButtons = new VBox(8, chuckButton, dadButton, factButton, gameNavButton, historyNavButton, favoritesNavButton);
         navButtons.setFillWidth(true);
 
         Region spacer = new Region();
@@ -158,15 +228,23 @@ public class MainFrame {
         historyView.getChildren().addAll(createHistoryHeader(), historyTable);
         VBox.setVgrow(historyTable, Priority.ALWAYS);
 
-        StackPane centerStack = new StackPane(contentScroll, historyView);
+        favoritesView.getStyleClass().add("history-screen");
+        favoritesView.getChildren().addAll(createFavoritesHeader(), favoritesTable);
+        VBox.setVgrow(favoritesTable, Priority.ALWAYS);
+
+        StackPane centerStack = new StackPane(contentScroll, historyView, favoritesView);
         centerStack.getStyleClass().add("center-stack");
         return centerStack;
     }
 
     private VBox createControlsPanel() {
+        screenIconLabel.getStyleClass().add("screen-icon");
         screenTitleLabel.getStyleClass().add("screen-title");
         screenSubtitleLabel.getStyleClass().add("screen-subtitle");
         screenSubtitleLabel.setWrapText(true);
+
+        HBox screenHeader = new HBox(12, screenIconLabel, screenTitleLabel);
+        screenHeader.setAlignment(Pos.CENTER_LEFT);
 
         Label categoryLabel = new Label("Categoria");
         categoryLabel.getStyleClass().add("field-label");
@@ -179,7 +257,7 @@ public class MainFrame {
         HBox actionRow = new HBox(12, categoryPicker, spacer, generateButton, copyButton, statusLabel);
         actionRow.setAlignment(Pos.CENTER_LEFT);
 
-        VBox controls = new VBox(16, screenTitleLabel, screenSubtitleLabel, actionRow);
+        VBox controls = new VBox(16, screenHeader, screenSubtitleLabel, actionRow);
         controls.getStyleClass().add("panel");
         return controls;
     }
@@ -187,10 +265,18 @@ public class MainFrame {
     private VBox createResultPanel() {
         resultTitleLabel.getStyleClass().add("section-title");
 
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox resultHeader = new HBox(10, resultTitleLabel, spacer, favoriteButton);
+        resultHeader.setAlignment(Pos.CENTER_LEFT);
+
+        HBox gameActions = new HBox(10, trueButton, falseButton, gameScoreLabel);
+        gameActions.setAlignment(Pos.CENTER_LEFT);
+
         VBox textArea = new VBox(8, resultTextLabel, toggleOriginalButton);
         textArea.setAlignment(Pos.BOTTOM_LEFT);
 
-        VBox result = new VBox(10, resultTitleLabel, textArea);
+        VBox result = new VBox(10, resultHeader, textArea, gameActions, gameFeedbackLabel);
         result.getStyleClass().add("result-panel");
         return result;
     }
@@ -203,15 +289,37 @@ public class MainFrame {
     }
 
     private VBox createHistoryHeader() {
-        Label title = new Label("Cronologia");
+        Label title = new Label(ApiScreen.HISTORY.icon + " Cronologia");
         title.getStyleClass().add("screen-title");
 
-        VBox header = new VBox(6, title);
+        VBox header = new VBox(14, title, historySearchField);
         header.getStyleClass().add("panel");
         return header;
     }
 
     private void configureHistoryTable() {
+        configureEntryTable(historyTable);
+        historyTable.setItems(filteredHistory);
+    }
+
+    private VBox createFavoritesHeader() {
+        Label title = new Label(ApiScreen.FAVORITES.icon + " Preferiti");
+        title.getStyleClass().add("screen-title");
+
+        Label subtitle = new Label("Le battute e i facts che vuoi tenere da parte.");
+        subtitle.getStyleClass().add("screen-subtitle");
+
+        VBox header = new VBox(6, title, subtitle);
+        header.getStyleClass().add("panel");
+        return header;
+    }
+
+    private void configureFavoritesTable() {
+        configureEntryTable(favoritesTable);
+        favoritesTable.setItems(favorites);
+    }
+
+    private void configureEntryTable(TableView<HistoryEntry> table) {
         // La cronologia resta compatta: la colonna grande mostra solo un'anteprima.
         TableColumn<HistoryEntry, String> dateColumn = new TableColumn<>("Data/Ora");
         dateColumn.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().dateTime()));
@@ -226,11 +334,10 @@ public class MainFrame {
         originalColumn.setPrefWidth(520);
         originalColumn.setCellFactory(column -> new CompactHistoryCell());
 
-        historyTable.setItems(history);
-        historyTable.getColumns().addAll(Arrays.asList(dateColumn, sourceColumn, originalColumn));
-        historyTable.getStyleClass().add("history-table");
-        historyTable.setFixedCellSize(34);
-        historyTable.setRowFactory(table -> {
+        table.getColumns().addAll(Arrays.asList(dateColumn, sourceColumn, originalColumn));
+        table.getStyleClass().add("history-table");
+        table.setFixedCellSize(34);
+        table.setRowFactory(entryTable -> {
             TableRow<HistoryEntry> row = new TableRow<>();
             row.setTooltip(new Tooltip("Doppio clic per leggere il testo completo"));
             // Il popup evita di allargare la tabella quando il contenuto e' lungo.
@@ -249,6 +356,7 @@ public class MainFrame {
         button.setMaxWidth(Double.MAX_VALUE);
         button.getStyleClass().add("nav-button");
         button.setOnAction(event -> showScreen(screen));
+        button.setText(screen.icon + "  " + text);
         return button;
     }
 
@@ -264,10 +372,15 @@ public class MainFrame {
 
     private void showScreen(ApiScreen screen) {
         // Ogni cambio sezione riparte da uno stato pulito per evitare contenuti vecchi.
+        if (currentScreen == ApiScreen.FACT_GAME && screen != ApiScreen.FACT_GAME) {
+            gameRunActive = false;
+            gameRunId++;
+        }
         currentScreen = screen;
         currentResult = null;
         currentTranslation = "";
         showingOriginal = false;
+        currentFactGameQuestion = null;
 
         if (root != null) {
             root.getStyleClass().removeAll(ApiScreen.themeClasses());
@@ -278,36 +391,63 @@ public class MainFrame {
             case CHUCK -> chuckButton;
             case DAD_JOKE -> dadButton;
             case USELESS_FACT -> factButton;
+            case FACT_GAME -> gameNavButton;
             case HISTORY -> historyNavButton;
+            case FAVORITES -> favoritesNavButton;
         };
         selectedButton.setSelected(true);
 
         boolean historyScreen = screen == ApiScreen.HISTORY;
+        boolean favoritesScreen = screen == ApiScreen.FAVORITES;
         // Le due viste sono nello stesso StackPane: managed=false libera spazio nel layout.
-        contentView.setVisible(!historyScreen);
-        contentView.setManaged(!historyScreen);
+        contentView.setVisible(!historyScreen && !favoritesScreen);
+        contentView.setManaged(!historyScreen && !favoritesScreen);
         historyView.setVisible(historyScreen);
         historyView.setManaged(historyScreen);
-        if (historyScreen) {
+        favoritesView.setVisible(favoritesScreen);
+        favoritesView.setManaged(favoritesScreen);
+        if (historyScreen || favoritesScreen) {
             return;
         }
 
+        screenIconLabel.setText(screen.icon);
         screenTitleLabel.setText(screen.title);
         screenSubtitleLabel.setText(screen.subtitle);
         generateButton.setText(screen.generateText);
         resultTextLabel.setText(screen.placeholderText);
-        resultTitleLabel.setText("Traduzione");
+        resultTitleLabel.setText(screen == ApiScreen.FACT_GAME ? "Domanda" : "Traduzione");
         toggleOriginalButton.setText("Visualizza originale");
         setToggleOriginalButtonVisible(false);
 
         boolean chuckScreen = screen == ApiScreen.CHUCK;
+        boolean gameScreen = screen == ApiScreen.FACT_GAME;
         categoryPicker.setVisible(chuckScreen);
         categoryPicker.setManaged(chuckScreen);
         categoryCombo.setDisable(!chuckScreen || categoryCombo.getItems().isEmpty());
+        copyButton.setVisible(!gameScreen);
+        copyButton.setManaged(!gameScreen);
+        generateButton.setText(gameScreen ? "Nuova partita" : screen.generateText);
+        favoriteButton.setVisible(!gameScreen);
+        favoriteButton.setManaged(!gameScreen);
+        trueButton.setVisible(gameScreen);
+        trueButton.setManaged(gameScreen);
+        falseButton.setVisible(gameScreen);
+        falseButton.setManaged(gameScreen);
+        gameScoreLabel.setVisible(gameScreen);
+        gameScoreLabel.setManaged(gameScreen);
+        gameFeedbackLabel.setVisible(gameScreen);
+        gameFeedbackLabel.setManaged(gameScreen);
+        gameFeedbackLabel.setText("");
+        updateGameScore();
         setBusy(false, "Pronto");
     }
 
     private void generateContent() {
+        if (currentScreen == ApiScreen.FACT_GAME) {
+            startFactGame();
+            return;
+        }
+
         setBusy(true, "Caricamento...");
 
     
@@ -328,9 +468,123 @@ public class MainFrame {
         return switch (currentScreen) {
             case DAD_JOKE -> dadJokeService::getRandomJoke;
             case USELESS_FACT -> uselessFactService::getRandomFact;
+            case FACT_GAME -> uselessFactService::getRandomFact;
             case CHUCK -> this::getChuckResult;
             default -> chuckNorrisService::getRandomJoke;
         };
+    }
+
+    private void startFactGame() {
+        gameRunId++;
+        gameRunActive = true;
+        gameScore = 0;
+        gameTotal = 0;
+        currentFactGameQuestion = null;
+        resultTitleLabel.setText("Partita avviata");
+        resultTextLabel.setText("Sto preparando la prima domanda...");
+        gameFeedbackLabel.setText("");
+        updateGameScore();
+        generateFactQuestion(gameRunId);
+    }
+
+    private void generateFactQuestion(int runId) {
+        if (!gameRunActive || currentScreen != ApiScreen.FACT_GAME || runId != gameRunId) {
+            return;
+        }
+
+        setBusy(true, "Preparazione...");
+        gameFeedbackLabel.setText("");
+        currentFactGameQuestion = null;
+
+        CompletableFuture.supplyAsync(this::buildFactGameQuestion)
+                .thenAccept(question -> Platform.runLater(() -> {
+                    if (gameRunActive && currentScreen == ApiScreen.FACT_GAME && runId == gameRunId) {
+                        renderFactGameQuestion(question);
+                    }
+                }))
+                .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        if (gameRunActive && currentScreen == ApiScreen.FACT_GAME && runId == gameRunId) {
+                            setBusy(false, "Errore");
+                            showError(userMessage(ex));
+                        }
+                    });
+                    return null;
+                });
+    }
+
+    private FactGameQuestion buildFactGameQuestion() {
+        JokeResult fact = uselessFactService.getRandomFact();
+        String trueFact = deepSeekService.translateToItalian(fact.originalText());
+        boolean trueQuestion = random.nextBoolean();
+        String displayedFact = trueQuestion ? trueFact : deepSeekService.makePlausibleFalseFact(fact.originalText());
+        return new FactGameQuestion(displayedFact, trueFact, trueQuestion);
+    }
+
+    private void renderFactGameQuestion(FactGameQuestion question) {
+        currentFactGameQuestion = question;
+        resultTitleLabel.setText("Vero o falso?");
+        resultTextLabel.setText(question.displayedFact());
+        trueButton.setDisable(false);
+        falseButton.setDisable(false);
+        setBusy(false, "Rispondi");
+    }
+
+    private void answerFactQuestion(boolean answer) {
+        if (!gameRunActive || currentFactGameQuestion == null) {
+            gameFeedbackLabel.setText("Genera una domanda prima di rispondere.");
+            return;
+        }
+
+        boolean falseFactQuestion = !currentFactGameQuestion.trueFact();
+        boolean correct = answer == currentFactGameQuestion.trueFact();
+        gameTotal++;
+        if (correct) {
+            gameScore++;
+        }
+
+        resultTitleLabel.setText(correct ? "Risposta corretta" : "Risposta sbagliata");
+        if (currentFactGameQuestion.trueFact()) {
+            gameFeedbackLabel.setText(correct ? "Esatto: questo fatto era vero." : "Era vero.");
+        } else {
+            gameFeedbackLabel.setText((correct ? "Esatto: era falso. " : "Era falso. ")
+                    + "Il fatto vero era: " + currentFactGameQuestion.trueFactText());
+        }
+        trueButton.setDisable(true);
+        falseButton.setDisable(true);
+        updateGameScore();
+        statusLabel.setText(correct ? "Corretto" : "Sbagliato");
+        currentFactGameQuestion = null;
+
+        if (correct) {
+            double delaySeconds = falseFactQuestion ? FALSE_FACT_REVEAL_DELAY_SECONDS : NEXT_QUESTION_DELAY_SECONDS;
+            scheduleNextFactQuestion(gameRunId, delaySeconds);
+        } else {
+            finishFactGame();
+        }
+    }
+
+    private void updateGameScore() {
+        gameScoreLabel.setText("Punteggio: " + gameScore + " | Record: " + gameHighScore);
+    }
+
+    private void scheduleNextFactQuestion(int runId, double delaySeconds) {
+        PauseTransition delay = new PauseTransition(Duration.seconds(delaySeconds));
+        delay.setOnFinished(event -> generateFactQuestion(runId));
+        delay.play();
+    }
+
+    private void finishFactGame() {
+        gameRunActive = false;
+        if (gameScore > gameHighScore) {
+            gameHighScore = gameScore;
+            persistGameHighScore();
+            gameFeedbackLabel.setText(gameFeedbackLabel.getText() + " Nuovo record: " + gameHighScore + ".");
+        } else {
+            gameFeedbackLabel.setText(gameFeedbackLabel.getText() + " Partita finita.");
+        }
+        updateGameScore();
+        setBusy(false, "Fine partita");
     }
 
     private JokeResult getChuckResult() {
@@ -400,6 +654,92 @@ public class MainFrame {
         history.add(0, new HistoryEntry(now, currentResult.source(), displayedText(), currentResult.originalText()));
     }
 
+    private void saveFavorite() {
+        if (currentResult == null) {
+            statusLabel.setText("Niente da salvare");
+            return;
+        }
+
+        String visibleText = displayedText();
+        boolean alreadySaved = favorites.stream()
+                .anyMatch(entry -> entry.source().equals(currentResult.source()) && entry.originalText().equals(visibleText));
+        if (alreadySaved) {
+            statusLabel.setText("Gia' nei preferiti");
+            return;
+        }
+
+        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+        favorites.add(0, new HistoryEntry(now, currentResult.source(), visibleText, currentResult.originalText()));
+        persistFavorites();
+        statusLabel.setText("Salvato");
+    }
+
+    private void loadFavorites() {
+        if (!Files.exists(FAVORITES_FILE)) {
+            return;
+        }
+
+        try (Reader reader = Files.newBufferedReader(FAVORITES_FILE, StandardCharsets.UTF_8)) {
+            List<HistoryEntry> savedFavorites = gson.fromJson(reader, HISTORY_ENTRY_LIST_TYPE);
+            if (savedFavorites != null) {
+                favorites.setAll(savedFavorites);
+            }
+        } catch (IOException | RuntimeException ex) {
+            statusLabel.setText("Preferiti non caricati");
+        }
+    }
+
+    private void persistFavorites() {
+        try {
+            Files.createDirectories(FAVORITES_FILE.getParent());
+            try (Writer writer = Files.newBufferedWriter(FAVORITES_FILE, StandardCharsets.UTF_8)) {
+                gson.toJson(new ArrayList<>(favorites), HISTORY_ENTRY_LIST_TYPE, writer);
+            }
+        } catch (IOException ex) {
+            statusLabel.setText("Preferiti non salvati");
+            showError("Errore: impossibile salvare i preferiti.");
+        }
+    }
+
+    private void loadGameHighScore() {
+        if (!Files.exists(GAME_HIGH_SCORE_FILE)) {
+            return;
+        }
+
+        try {
+            String savedScore = Files.readString(GAME_HIGH_SCORE_FILE, StandardCharsets.UTF_8).trim();
+            gameHighScore = savedScore.isBlank() ? 0 : Integer.parseInt(savedScore);
+        } catch (IOException | NumberFormatException ex) {
+            gameHighScore = 0;
+        }
+    }
+
+    private void persistGameHighScore() {
+        try {
+            Files.createDirectories(GAME_HIGH_SCORE_FILE.getParent());
+            Files.writeString(GAME_HIGH_SCORE_FILE, Integer.toString(gameHighScore), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            statusLabel.setText("Record non salvato");
+        }
+    }
+
+    private void applyHistoryFilter(String query) {
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
+        filteredHistory.setPredicate(entry -> {
+            if (normalizedQuery.isBlank()) {
+                return true;
+            }
+            return containsIgnoreCase(entry.dateTime(), normalizedQuery)
+                    || containsIgnoreCase(entry.source(), normalizedQuery)
+                    || containsIgnoreCase(entry.originalText(), normalizedQuery)
+                    || containsIgnoreCase(entry.translation(), normalizedQuery);
+        });
+    }
+
+    private boolean containsIgnoreCase(String value, String normalizedQuery) {
+        return value != null && value.toLowerCase().contains(normalizedQuery);
+    }
+
     private <T> void runAsync(Supplier<T> supplier, java.util.function.Consumer<T> onSuccess, String successMessage) {
         CompletableFuture.supplyAsync(supplier)
                 .thenAccept(result -> Platform.runLater(() -> {
@@ -429,9 +769,12 @@ public class MainFrame {
 
     private void setBusy(boolean busy, String status) {
         // Stato unico per evitare click concorrenti durante chiamate HTTP/traduzione.
-        generateButton.setDisable(busy || currentScreen == ApiScreen.HISTORY);
+        generateButton.setDisable(busy || currentScreen == ApiScreen.HISTORY || currentScreen == ApiScreen.FAVORITES);
         copyButton.setDisable(busy || currentResult == null);
+        favoriteButton.setDisable(busy || currentResult == null);
         toggleOriginalButton.setDisable(busy || currentResult == null || currentTranslation.isBlank() || currentTranslation.equals(currentResult.originalText()));
+        trueButton.setDisable(busy || currentScreen != ApiScreen.FACT_GAME || currentFactGameQuestion == null);
+        falseButton.setDisable(busy || currentScreen != ApiScreen.FACT_GAME || currentFactGameQuestion == null);
         statusLabel.setText(status);
     }
 
@@ -484,6 +827,7 @@ public class MainFrame {
     private enum ApiScreen {
         CHUCK(
                 "chuck-theme",
+                "🥋",
                 "Chuck Norris",
                 "Genera una battuta casuale oppure scegli una categoria.",
                 "Genera Chuck",
@@ -491,6 +835,7 @@ public class MainFrame {
         ),
         DAD_JOKE(
                 "dad-theme",
+                "👔",
                 "Dad Joke",
                 "Freddure divertenti, o forse no.",
                 "Genera Dad Joke",
@@ -498,27 +843,47 @@ public class MainFrame {
         ),
         USELESS_FACT(
                 "fact-theme",
+                "💡",
                 "Useless Fact",
                 "Fatti curiosi e inutili.",
                 "Genera Fact",
                 "Premi Genera Fact per ottenere un fatto curioso."
         ),
+        FACT_GAME(
+                "game-theme",
+                "🎯",
+                "Vero o falso?",
+                "Rispondi finche' non sbagli: dopo ogni risposta corretta arriva automaticamente una nuova domanda.",
+                "Nuova partita",
+                "Premi Nuova partita per iniziare, poi scegli Vero o Falso."
+        ),
         HISTORY(
                 "history-theme",
+                "🕘",
                 "Cronologia",
+                "",
+                "",
+                ""
+        ),
+        FAVORITES(
+                "favorites-theme",
+                "★",
+                "Preferiti",
                 "",
                 "",
                 ""
         );
 
         private final String themeClass;
+        private final String icon;
         private final String title;
         private final String subtitle;
         private final String generateText;
         private final String placeholderText;
 
-        ApiScreen(String themeClass, String title, String subtitle, String generateText, String placeholderText) {
+        ApiScreen(String themeClass, String icon, String title, String subtitle, String generateText, String placeholderText) {
             this.themeClass = themeClass;
+            this.icon = icon;
             this.title = title;
             this.subtitle = subtitle;
             this.generateText = generateText;
@@ -533,5 +898,8 @@ public class MainFrame {
     }
 
     private record GeneratedContent(JokeResult result, String translation, boolean translationFallback) {
+    }
+
+    private record FactGameQuestion(String displayedFact, String trueFactText, boolean trueFact) {
     }
 }

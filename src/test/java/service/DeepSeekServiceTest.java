@@ -36,13 +36,24 @@ class DeepSeekServiceTest {
         assertEquals("Una frase di test.", translation);
     }
 
+    @Test
+    void sendsFalseFactRequestToDeepSeek() {
+        Properties properties = new Properties();
+        properties.setProperty("DEEPSEEK_API_KEY", "test-key");
+        DeepSeekService service = new DeepSeekService(new Config(properties), new FakeHttpUtil());
+
+        String falseFact = service.makePlausibleFalseFact("A test fact.");
+
+        assertEquals("Una frase di test.", falseFact);
+    }
+
     private static class FakeHttpUtil extends HttpUtil {
         @Override
         public <T> T postJson(String url, Object body, Class<T> responseType, Map<String, String> headers) {
             assertEquals("https://api.deepseek.com/chat/completions", url);
             assertEquals("Bearer test-key", headers.get("Authorization"));
             assertTrue(body.toString().contains("deepseek-v4-flash"));
-            assertTrue(body.toString().contains("A test sentence."));
+            assertTrue(body.toString().contains("A test"));
             return responseType.cast(response());
         }
 

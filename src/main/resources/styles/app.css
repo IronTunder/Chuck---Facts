@@ -28,11 +28,25 @@
     -app-soft: #ccfbf1;
 }
 
+.game-theme {
+    -fx-background-color: #f0fdf4;
+    -app-accent: #16a34a;
+    -app-accent-dark: #166534;
+    -app-soft: #dcfce7;
+}
+
 .history-theme {
     -fx-background-color: #f8fafc;
     -app-accent: #4f46e5;
     -app-accent-dark: #312e81;
     -app-soft: #e0e7ff;
+}
+
+.favorites-theme {
+    -fx-background-color: #fffbeb;
+    -app-accent: #d97706;
+    -app-accent-dark: #92400e;
+    -app-soft: #fef3c7;
 }
 
 /* Navigazione laterale stabile: resta indipendente dal contenuto centrale. */
@@ -106,6 +120,17 @@
     -fx-text-fill: #111827;
 }
 
+.screen-icon {
+    -fx-min-width: 54px;
+    -fx-min-height: 54px;
+    -fx-alignment: center;
+    -fx-background-color: -app-soft;
+    -fx-background-radius: 8;
+    -fx-border-color: derive(-app-accent, 40%);
+    -fx-border-radius: 8;
+    -fx-font-size: 27px;
+}
+
 .screen-subtitle {
     -fx-font-size: 14px;
     -fx-text-fill: #64748b;
@@ -128,6 +153,21 @@
     -fx-border-radius: 8;
     -fx-border-color: #cbd5e1;
     -fx-padding: 4 6 4 6;
+}
+
+.search-field {
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: #cbd5e1;
+    -fx-padding: 9 11 9 11;
+    -fx-font-size: 13px;
+    -fx-text-fill: #111827;
+    -fx-prompt-text-fill: #94a3b8;
+}
+
+.search-field:focused {
+    -fx-border-color: -app-accent;
 }
 
 /* Testo del risultato: piu' grande della UI, per dare priorita' al contenuto generato. */
@@ -172,6 +212,31 @@
 
 .button-ghost:hover {
     -fx-background-color: #e2e8f0;
+}
+
+.favorite-button {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+    -fx-padding: 7 10 7 10;
+    -fx-cursor: hand;
+}
+
+.answer-button {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-font-size: 14px;
+    -fx-font-weight: 800;
+    -fx-min-width: 96px;
+    -fx-padding: 10 16 10 16;
+    -fx-cursor: hand;
+}
+
+.game-feedback {
+    -fx-font-size: 15px;
+    -fx-line-spacing: 2px;
+    -fx-text-fill: #334155;
 }
 
 /* Toggle traduzione discreto, posizionato sotto al testo anziche' nella toolbar. */
