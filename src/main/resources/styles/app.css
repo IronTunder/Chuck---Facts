@@ -1,89 +1,108 @@
 .app-root {
     -fx-font-family: "Segoe UI", "Inter", "Arial", sans-serif;
-    -fx-background-color: #f6f7fb;
-    -app-accent: #dc2626;
-    -app-accent-dark: #991b1b;
-    -app-soft: #fee2e2;
+    -fx-background-color: linear-gradient(to bottom, #f8fafc, #eef2ff);
+    -app-accent: #ef4444;
+    -app-accent-dark: #b91c1c;
+    -app-soft: #fff1f2;
+    -app-surface: #ffffff;
+    -app-muted: #64748b;
+    -app-border: #e2e8f0;
 }
 
 /* Ogni schermata cambia solo le variabili colore usate dai controlli comuni. */
 .chuck-theme {
-    -fx-background-color: #fff7ed;
-    -app-accent: #dc2626;
-    -app-accent-dark: #991b1b;
-    -app-soft: #fee2e2;
+    -fx-background-color: linear-gradient(to bottom right, #fff7ed, #f8fafc 62%, #fee2e2);
+    -app-accent: #ef4444;
+    -app-accent-dark: #b91c1c;
+    -app-soft: #fff1f2;
 }
 
 .dad-theme {
-    -fx-background-color: #eff6ff;
+    -fx-background-color: linear-gradient(to bottom right, #eff6ff, #f8fafc 64%, #dbeafe);
     -app-accent: #2563eb;
     -app-accent-dark: #1e3a8a;
     -app-soft: #dbeafe;
 }
 
 .fact-theme {
-    -fx-background-color: #ecfeff;
+    -fx-background-color: linear-gradient(to bottom right, #ecfeff, #f8fafc 64%, #ccfbf1);
     -app-accent: #0f766e;
     -app-accent-dark: #134e4a;
     -app-soft: #ccfbf1;
 }
 
 .game-theme {
-    -fx-background-color: #f0fdf4;
+    -fx-background-color: linear-gradient(to bottom right, #f0fdf4, #f8fafc 64%, #dcfce7);
     -app-accent: #16a34a;
     -app-accent-dark: #166534;
     -app-soft: #dcfce7;
 }
 
+.whoa-theme {
+    -fx-background-color: linear-gradient(to bottom right, #111827, #1f2937 38%, #f8fafc 38%);
+    -app-accent: #65a30d;
+    -app-accent-dark: #3f6212;
+    -app-soft: #ecfccb;
+}
+
 .history-theme {
-    -fx-background-color: #f8fafc;
+    -fx-background-color: linear-gradient(to bottom right, #eef2ff, #f8fafc 64%, #e0e7ff);
     -app-accent: #4f46e5;
     -app-accent-dark: #312e81;
     -app-soft: #e0e7ff;
 }
 
 .favorites-theme {
-    -fx-background-color: #fffbeb;
+    -fx-background-color: linear-gradient(to bottom right, #fffbeb, #f8fafc 64%, #fef3c7);
     -app-accent: #d97706;
     -app-accent-dark: #92400e;
     -app-soft: #fef3c7;
 }
 
-/* Navigazione laterale stabile: resta indipendente dal contenuto centrale. */
-.side-nav {
-    -fx-pref-width: 220px;
-    -fx-padding: 28 18 22 18;
-    -fx-background-color: white;
-    -fx-border-color: #e5e7eb;
-    -fx-border-width: 0 1 0 0;
+/* Navigazione superiore divisa tra contenuti e minigiochi. */
+.top-nav {
+    -fx-padding: 12 22 12 22;
+    -fx-background-color: rgba(255, 255, 255, 0.96);
+    -fx-border-color: rgba(226, 232, 240, 0.92);
+    -fx-border-width: 0 0 1 0;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.06), 18, 0.12, 0, 6);
 }
 
 .app-title {
-    -fx-font-size: 24px;
+    -fx-background-color: #0f172a;
+    -fx-background-radius: 8;
+    -fx-padding: 8 12 8 12;
+    -fx-font-size: 18px;
     -fx-font-weight: 800;
-    -fx-text-fill: #111827;
+    -fx-text-fill: white;
+}
+
+.nav-section-label {
+    -fx-font-size: 10px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #64748b;
 }
 
 .nav-button {
-    -fx-alignment: center-left;
+    -fx-alignment: center;
     -fx-background-color: transparent;
     -fx-background-radius: 8;
     -fx-border-radius: 8;
-    -fx-padding: 11 12 11 12;
-    -fx-font-size: 14px;
-    -fx-font-weight: 700;
+    -fx-padding: 8 11 8 11;
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
     -fx-text-fill: #475569;
     -fx-cursor: hand;
 }
 
 .nav-button:hover {
-    -fx-background-color: #f1f5f9;
-    -fx-text-fill: #111827;
+    -fx-background-color: #f8fafc;
+    -fx-text-fill: #0f172a;
 }
 
 .nav-button:selected {
-    -fx-background-color: -app-soft;
-    -fx-text-fill: -app-accent-dark;
+    -fx-background-color: #0f172a;
+    -fx-text-fill: white;
 }
 
 .feed-scroll {
@@ -95,10 +114,18 @@
     -fx-background-color: transparent;
 }
 
+.center-stack {
+    -fx-padding: 0;
+}
+
+.content-frame {
+    -fx-padding: 0;
+}
+
 /* Padding generale delle viste; la cronologia lo riduce per mostrare piu' righe. */
 .screen-scroll-content,
 .history-screen {
-    -fx-padding: 30;
+    -fx-padding: 10 0 12 0;
 }
 
 .history-screen {
@@ -107,59 +134,66 @@
 
 .panel,
 .result-panel {
-    -fx-background-color: white;
+    -fx-background-color: rgba(255, 255, 255, 0.94);
     -fx-background-radius: 8;
     -fx-border-radius: 8;
-    -fx-border-color: #e5e7eb;
-    -fx-padding: 22;
+    -fx-border-color: rgba(226, 232, 240, 0.92);
+    -fx-padding: 13;
+    -fx-effect: none;
 }
 
 .screen-title {
-    -fx-font-size: 30px;
+    -fx-font-size: 20px;
     -fx-font-weight: 800;
-    -fx-text-fill: #111827;
+    -fx-text-fill: #0f172a;
 }
 
 .screen-icon {
-    -fx-min-width: 54px;
-    -fx-min-height: 54px;
+    -fx-min-width: 40px;
+    -fx-pref-width: 40px;
+    -fx-max-width: 40px;
+    -fx-min-height: 40px;
+    -fx-pref-height: 40px;
+    -fx-max-height: 40px;
     -fx-alignment: center;
-    -fx-background-color: -app-soft;
+    -fx-background-color: linear-gradient(to bottom right, -app-soft, white);
     -fx-background-radius: 8;
-    -fx-border-color: derive(-app-accent, 40%);
+    -fx-border-color: derive(-app-accent, 55%);
     -fx-border-radius: 8;
-    -fx-font-size: 27px;
+    -fx-font-size: 20px;
+    -fx-text-fill: #0f172a;
 }
 
 .screen-subtitle {
-    -fx-font-size: 14px;
-    -fx-text-fill: #64748b;
+    -fx-font-size: 13px;
+    -fx-text-fill: -app-muted;
 }
 
 .category-picker {
     -fx-min-width: 240px;
+    -fx-max-width: 240px;
 }
 
 .field-label,
 .section-title {
-    -fx-font-size: 12px;
+    -fx-font-size: 11px;
     -fx-font-weight: 800;
-    -fx-text-fill: #475569;
+    -fx-text-fill: #64748b;
 }
 
 .combo-modern {
-    -fx-background-color: white;
+    -fx-background-color: #f8fafc;
     -fx-background-radius: 8;
     -fx-border-radius: 8;
-    -fx-border-color: #cbd5e1;
+    -fx-border-color: #e2e8f0;
     -fx-padding: 4 6 4 6;
 }
 
 .search-field {
-    -fx-background-color: white;
+    -fx-background-color: #f8fafc;
     -fx-background-radius: 8;
     -fx-border-radius: 8;
-    -fx-border-color: #cbd5e1;
+    -fx-border-color: #e2e8f0;
     -fx-padding: 9 11 9 11;
     -fx-font-size: 13px;
     -fx-text-fill: #111827;
@@ -172,18 +206,19 @@
 
 /* Testo del risultato: piu' grande della UI, per dare priorita' al contenuto generato. */
 .body-copy {
-    -fx-font-size: 20px;
-    -fx-line-spacing: 3px;
-    -fx-text-fill: #111827;
+    -fx-font-size: 16px;
+    -fx-line-spacing: 2px;
+    -fx-text-fill: #0f172a;
+    -fx-alignment: center;
 }
 
 .status-pill {
-    -fx-background-color: #f1f5f9;
-    -fx-background-radius: 999;
-    -fx-padding: 6 11 6 11;
+    -fx-background-color: -app-soft;
+    -fx-background-radius: 8;
+    -fx-padding: 8 12 8 12;
     -fx-font-size: 12px;
-    -fx-font-weight: 700;
-    -fx-text-fill: #334155;
+    -fx-font-weight: 800;
+    -fx-text-fill: -app-accent-dark;
 }
 
 .action-button {
@@ -191,7 +226,16 @@
     -fx-border-radius: 8;
     -fx-font-size: 13px;
     -fx-font-weight: 800;
-    -fx-padding: 10 14 10 14;
+    -fx-padding: 9 14 9 14;
+    -fx-cursor: hand;
+}
+
+.compact-button {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+    -fx-padding: 6 11 6 11;
     -fx-cursor: hand;
 }
 
@@ -205,13 +249,14 @@
 }
 
 .button-ghost {
-    -fx-background-color: #f8fafc;
+    -fx-background-color: white;
     -fx-border-color: #e2e8f0;
-    -fx-text-fill: #334155;
+    -fx-text-fill: #0f172a;
 }
 
 .button-ghost:hover {
-    -fx-background-color: #e2e8f0;
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #cbd5e1;
 }
 
 .favorite-button {
@@ -224,19 +269,87 @@
 }
 
 .answer-button {
+    -fx-alignment: center;
     -fx-background-radius: 8;
     -fx-border-radius: 8;
-    -fx-font-size: 14px;
+    -fx-background-color: white;
+    -fx-border-color: #dfe3ea;
+    -fx-font-size: 18px;
     -fx-font-weight: 800;
-    -fx-min-width: 96px;
-    -fx-padding: 10 16 10 16;
+    -fx-min-width: 390px;
+    -fx-min-height: 116px;
+    -fx-padding: 20 16 20 16;
     -fx-cursor: hand;
 }
 
+.answer-button:hover {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #cbd5e1;
+}
+
+.true-answer-button {
+    -fx-text-fill: #052e16;
+}
+
+.false-answer-button {
+    -fx-text-fill: #450a0a;
+}
+
 .game-feedback {
-    -fx-font-size: 15px;
+    -fx-font-size: 14px;
     -fx-line-spacing: 2px;
-    -fx-text-fill: #334155;
+    -fx-text-fill: #475569;
+}
+
+.whoa-video-pane {
+    -fx-min-height: 242px;
+    -fx-pref-height: 242px;
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: transparent;
+    -fx-effect: none;
+}
+
+.whoa-media-controls {
+    -fx-padding: 0 0 1 0;
+    -fx-alignment: center;
+}
+
+.whoa-score-label {
+    -fx-background-color: #1f2937;
+    -fx-background-radius: 8;
+    -fx-padding: 8 10 8 10;
+    -fx-font-size: 13px;
+    -fx-font-weight: 800;
+    -fx-text-fill: white;
+}
+
+.whoa-video-placeholder {
+    -fx-background-color: rgba(15, 23, 42, 0.78);
+    -fx-background-radius: 8;
+    -fx-padding: 9 12 9 12;
+    -fx-font-size: 15px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #e2e8f0;
+}
+
+.whoa-poster-view {
+    -fx-opacity: 0.72;
+}
+
+.whoa-answers-grid {
+    -fx-padding: 0;
+}
+
+.whoa-answer-button {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-font-size: 13px;
+    -fx-font-weight: 800;
+    -fx-min-width: 260px;
+    -fx-padding: 8 10 8 10;
+    -fx-cursor: hand;
 }
 
 /* Toggle traduzione discreto, posizionato sotto al testo anziche' nella toolbar. */
@@ -264,11 +377,12 @@
 
 /* Cronologia compatta: il testo completo si apre con doppio clic sul popup. */
 .history-table {
-    -fx-background-color: white;
+    -fx-background-color: rgba(255, 255, 255, 0.94);
     -fx-background-radius: 8;
     -fx-border-radius: 8;
-    -fx-border-color: #e5e7eb;
+    -fx-border-color: #e2e8f0;
     -fx-font-size: 12px;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.06), 18, 0.12, 0, 8);
 }
 
 .history-table .column-header-background {

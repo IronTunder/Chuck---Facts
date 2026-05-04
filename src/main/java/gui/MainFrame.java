@@ -28,25 +28,34 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.image.Image;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaException;
+import javafx.scene.media.MediaPlayer;
+import javafx.scene.media.MediaView;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import model.HistoryEntry;
 import model.JokeResult;
+import model.WhoaResponse;
 import service.ChuckNorrisService;
 import service.DadJokeService;
 import service.DeepSeekService;
 import service.UselessFactService;
+import service.WhoaService;
 import util.Config;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.awt.Desktop;
 import java.lang.reflect.Type;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -55,6 +64,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -72,8 +82,14 @@ public class MainFrame {
             ".chuck-and-facts",
             "fact-game-high-score.txt"
     );
+    private static final Path WHOA_GAME_HIGH_SCORE_FILE = Path.of(
+            System.getProperty("user.home"),
+            ".chuck-and-facts",
+            "whoa-game-high-score.txt"
+    );
     private static final double NEXT_QUESTION_DELAY_SECONDS = 1.5;
     private static final double FALSE_FACT_REVEAL_DELAY_SECONDS = 4.0;
+    private static final double NEXT_WHOA_DELAY_SECONDS = 2.0;
     private static final Type HISTORY_ENTRY_LIST_TYPE = new TypeToken<List<HistoryEntry>>() {
     }.getType();
 
@@ -83,6 +99,7 @@ public class MainFrame {
     private final ChuckNorrisService chuckNorrisService = new ChuckNorrisService();
     private final DadJokeService dadJokeService = new DadJokeService();
     private final UselessFactService uselessFactService = new UselessFactService();
+    private final WhoaService whoaService = new WhoaService();
     private final DeepSeekService deepSeekService = new DeepSeekService(config);
     private final ObservableList<HistoryEntry> history = FXCollections.observableArrayList();
     private final ObservableList<HistoryEntry> favorites = FXCollections.observableArrayList();
@@ -93,6 +110,7 @@ public class MainFrame {
     private final ToggleButton dadButton = createNavButton("Dad Joke", ApiScreen.DAD_JOKE);
     private final ToggleButton factButton = createNavButton("Facts", ApiScreen.USELESS_FACT);
     private final ToggleButton gameNavButton = createNavButton("Vero/Falso", ApiScreen.FACT_GAME);
+    private final ToggleButton whoaGameNavButton = createNavButton("Whoa Game", ApiScreen.WHOA_GAME);
     private final ToggleButton historyNavButton = createNavButton("Cronologia", ApiScreen.HISTORY);
     private final ToggleButton favoritesNavButton = createNavButton("Preferiti", ApiScreen.FAVORITES);
 
@@ -102,6 +120,17 @@ public class MainFrame {
     private final Button favoriteButton = new Button("🔖 Salva");
     private final Button trueButton = new Button("Vero");
     private final Button falseButton = new Button("Falso");
+    private final Button whoaReplayButton = new Button("Replay");
+    private final Button whoaAnswerOneButton = createWhoaAnswerButton();
+    private final Button whoaAnswerTwoButton = createWhoaAnswerButton();
+    private final Button whoaAnswerThreeButton = createWhoaAnswerButton();
+    private final Button whoaAnswerFourButton = createWhoaAnswerButton();
+    private final List<Button> whoaAnswerButtons = Arrays.asList(
+            whoaAnswerOneButton,
+            whoaAnswerTwoButton,
+            whoaAnswerThreeButton,
+            whoaAnswerFourButton
+    );
     private final Button toggleOriginalButton = new Button("Visualizza originale");
 
     private final Label screenIconLabel = new Label();
@@ -110,9 +139,15 @@ public class MainFrame {
     private final Label resultTitleLabel = new Label("Traduzione");
     private final Label resultTextLabel = createBodyLabel("");
     private final Label gameScoreLabel = new Label("Punteggio: 0/0");
+    private final Label whoaScoreLabel = new Label("Score: 0 | Record: 0");
     private final Label gameFeedbackLabel = createBodyLabel("");
     private final Label statusLabel = new Label("Pronto");
     private final VBox categoryPicker = new VBox(6);
+    private final MediaView whoaMediaView = new MediaView();
+    private final Label whoaVideoPlaceholderLabel = new Label("La clip apparira' qui.");
+    private final HBox whoaMediaControls = new HBox(8, whoaReplayButton);
+    private final StackPane whoaVideoPane = new StackPane(whoaMediaView, whoaVideoPlaceholderLabel);
+    private final GridPane whoaAnswersGrid = new GridPane();
     private final VBox contentView = new VBox(16);
     private final VBox historyView = new VBox(12);
     private final VBox favoritesView = new VBox(12);
@@ -131,6 +166,14 @@ public class MainFrame {
     private int gameHighScore;
     private int gameRunId;
     private boolean gameRunActive;
+    private WhoaGameQuestion currentWhoaGameQuestion;
+    private List<String> whoaMovies = List.of();
+    private int whoaScore;
+    private int whoaHighScore;
+    private int whoaRunId;
+    private boolean whoaRunActive;
+    private MediaPlayer whoaMediaPlayer;
+    private String currentWhoaExternalVideoUrl;
 
     public void show(Stage stage) {
         configureControls();
@@ -138,14 +181,15 @@ public class MainFrame {
         configureFavoritesTable();
         loadFavorites();
         loadGameHighScore();
+        loadWhoaHighScore();
         loadChuckCategories();
 
         root = new BorderPane();
         root.getStyleClass().addAll("app-root", currentScreen.themeClass);
-        root.setLeft(createSideNav());
+        root.setTop(createTopNav());
         root.setCenter(createCenter());
 
-        Scene scene = new Scene(root, 1040, 720);
+        Scene scene = new Scene(root, 1120, 720);
         URL stylesheet = MainFrame.class.getResource("/styles/app.css");
         if (stylesheet != null) {
             scene.getStylesheets().add(stylesheet.toExternalForm());
@@ -156,11 +200,9 @@ public class MainFrame {
         if (icon != null) {
             stage.getIcons().add(new Image(icon.toExternalForm()));
         }
-        stage.setMaxWidth(1040);
-        stage.setMaxHeight(720);
-        stage.setMinWidth(900);
-        stage.setMinHeight(620);
+        stage.setResizable(false);
         stage.setScene(scene);
+        stage.setOnHidden(event -> disposeWhoaMediaPlayer());
         stage.show();
         showScreen(ApiScreen.CHUCK);
     }
@@ -173,24 +215,42 @@ public class MainFrame {
         generateButton.getStyleClass().addAll("button-primary", "action-button");
         copyButton.getStyleClass().addAll("button-ghost", "action-button");
         favoriteButton.getStyleClass().addAll("button-ghost", "favorite-button");
-        trueButton.getStyleClass().addAll("button-primary", "answer-button");
-        falseButton.getStyleClass().addAll("button-ghost", "answer-button");
+        trueButton.setText("✓\nVero");
+        falseButton.setText("✕\nFalso");
+        trueButton.getStyleClass().addAll("answer-button", "true-answer-button");
+        falseButton.getStyleClass().addAll("answer-button", "false-answer-button");
+        whoaReplayButton.getStyleClass().addAll("button-primary", "compact-button");
+        whoaAnswerButtons.forEach(button -> button.getStyleClass().addAll("button-ghost", "whoa-answer-button"));
         toggleOriginalButton.getStyleClass().addAll("button-ghost", "translation-toggle");
         gameScoreLabel.getStyleClass().add("status-pill");
+        whoaScoreLabel.getStyleClass().add("whoa-score-label");
         gameFeedbackLabel.getStyleClass().add("game-feedback");
         statusLabel.getStyleClass().add("status-pill");
+        whoaVideoPane.getStyleClass().add("whoa-video-pane");
+        whoaVideoPlaceholderLabel.getStyleClass().add("whoa-video-placeholder");
+        whoaMediaControls.getStyleClass().add("whoa-media-controls");
+        whoaAnswersGrid.getStyleClass().add("whoa-answers-grid");
+        whoaMediaView.setPreserveRatio(true);
+        whoaMediaView.setFitWidth(760);
+        whoaMediaView.setFitHeight(248);
 
         generateButton.setOnAction(event -> generateContent());
         copyButton.setOnAction(event -> copyText(displayedText()));
         favoriteButton.setOnAction(event -> saveFavorite());
         trueButton.setOnAction(event -> answerFactQuestion(true));
         falseButton.setOnAction(event -> answerFactQuestion(false));
+        whoaReplayButton.setOnAction(event -> replayWhoaClip());
+        for (Button button : whoaAnswerButtons) {
+            button.setOnAction(event -> answerWhoaQuestion((String) button.getUserData()));
+            button.setTooltip(new Tooltip("Scegli questo film"));
+        }
         toggleOriginalButton.setOnAction(event -> toggleOriginal());
         generateButton.setTooltip(new Tooltip("Genera un nuovo contenuto"));
         copyButton.setTooltip(new Tooltip("Copia il testo visibile"));
         favoriteButton.setTooltip(new Tooltip("Salva nei preferiti"));
         trueButton.setTooltip(new Tooltip("Rispondi vero"));
         falseButton.setTooltip(new Tooltip("Rispondi falso"));
+        whoaReplayButton.setTooltip(new Tooltip("Rivedi la clip dall'inizio"));
         toggleOriginalButton.setTooltip(new Tooltip("Alterna tra traduzione e originale"));
 
         historySearchField.setPromptText("Cerca nella cronologia");
@@ -200,50 +260,72 @@ public class MainFrame {
         setBusy(false, "Pronto");
     }
 
-    private VBox createSideNav() {
+    private VBox createTopNav() {
         Label appName = new Label("Chuck & Facts");
         appName.getStyleClass().add("app-title");
 
-        VBox navButtons = new VBox(8, chuckButton, dadButton, factButton, gameNavButton, historyNavButton, favoritesNavButton);
-        navButtons.setFillWidth(true);
+        Label contentLabel = new Label("Chuck & Facts");
+        contentLabel.getStyleClass().add("nav-section-label");
+        Label minigamesLabel = new Label("Minigames");
+        minigamesLabel.getStyleClass().add("nav-section-label");
+
+        HBox contentButtons = new HBox(6, chuckButton, dadButton, factButton, historyNavButton, favoritesNavButton);
+        contentButtons.setAlignment(Pos.CENTER_LEFT);
+        HBox gameButtons = new HBox(6, gameNavButton, whoaGameNavButton);
+        gameButtons.setAlignment(Pos.CENTER_LEFT);
+
+        VBox contentSection = new VBox(4, contentLabel, contentButtons);
+        VBox minigamesSection = new VBox(4, minigamesLabel, gameButtons);
 
         Region spacer = new Region();
-        VBox.setVgrow(spacer, Priority.ALWAYS);
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        VBox sideNav = new VBox(18, appName, navButtons, spacer);
-        sideNav.getStyleClass().add("side-nav");
-        return sideNav;
+        HBox navRow = new HBox(22, appName, contentSection, minigamesSection, spacer);
+        navRow.setAlignment(Pos.CENTER_LEFT);
+        navRow.getStyleClass().add("top-nav");
+        return new VBox(navRow);
     }
 
     private StackPane createCenter() {
         // StackPane permette di alternare contenuto principale e cronologia senza ricreare la scena.
         contentView.getStyleClass().add("screen-scroll-content");
+        contentView.setSpacing(10);
+        contentView.setMaxWidth(900);
         contentView.getChildren().addAll(createControlsPanel(), createResultPanel());
 
-        ScrollPane contentScroll = new ScrollPane(contentView);
+        StackPane contentFrame = new StackPane(contentView);
+        contentFrame.getStyleClass().add("content-frame");
+        contentFrame.setAlignment(Pos.TOP_CENTER);
+
+        ScrollPane contentScroll = new ScrollPane(contentFrame);
         contentScroll.setFitToWidth(true);
         contentScroll.getStyleClass().add("feed-scroll");
 
         historyView.getStyleClass().add("history-screen");
+        historyView.setMaxWidth(980);
         historyView.getChildren().addAll(createHistoryHeader(), historyTable);
         VBox.setVgrow(historyTable, Priority.ALWAYS);
 
         favoritesView.getStyleClass().add("history-screen");
+        favoritesView.setMaxWidth(980);
         favoritesView.getChildren().addAll(createFavoritesHeader(), favoritesTable);
         VBox.setVgrow(favoritesTable, Priority.ALWAYS);
 
         StackPane centerStack = new StackPane(contentScroll, historyView, favoritesView);
         centerStack.getStyleClass().add("center-stack");
+        StackPane.setAlignment(historyView, Pos.TOP_CENTER);
+        StackPane.setAlignment(favoritesView, Pos.TOP_CENTER);
         return centerStack;
     }
 
-    private VBox createControlsPanel() {
+    private HBox createControlsPanel() {
         screenIconLabel.getStyleClass().add("screen-icon");
         screenTitleLabel.getStyleClass().add("screen-title");
         screenSubtitleLabel.getStyleClass().add("screen-subtitle");
         screenSubtitleLabel.setWrapText(true);
 
-        HBox screenHeader = new HBox(12, screenIconLabel, screenTitleLabel);
+        VBox titleGroup = new VBox(3, screenTitleLabel, screenSubtitleLabel);
+        HBox screenHeader = new HBox(10, screenIconLabel, titleGroup);
         screenHeader.setAlignment(Pos.CENTER_LEFT);
 
         Label categoryLabel = new Label("Categoria");
@@ -254,10 +336,14 @@ public class MainFrame {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox actionRow = new HBox(12, categoryPicker, spacer, generateButton, copyButton, statusLabel);
-        actionRow.setAlignment(Pos.CENTER_LEFT);
+        HBox actionRow = new HBox(8, generateButton, gameScoreLabel, whoaScoreLabel, copyButton);
+        actionRow.setAlignment(Pos.CENTER_RIGHT);
 
-        VBox controls = new VBox(16, screenHeader, screenSubtitleLabel, actionRow);
+        VBox rightActions = new VBox(6, categoryPicker, actionRow);
+        rightActions.setAlignment(Pos.CENTER_RIGHT);
+
+        HBox controls = new HBox(14, screenHeader, spacer, rightActions);
+        controls.setAlignment(Pos.CENTER_LEFT);
         controls.getStyleClass().add("panel");
         return controls;
     }
@@ -270,13 +356,24 @@ public class MainFrame {
         HBox resultHeader = new HBox(10, resultTitleLabel, spacer, favoriteButton);
         resultHeader.setAlignment(Pos.CENTER_LEFT);
 
-        HBox gameActions = new HBox(10, trueButton, falseButton, gameScoreLabel);
-        gameActions.setAlignment(Pos.CENTER_LEFT);
+        HBox gameActions = new HBox(16, trueButton, falseButton);
+        gameActions.setAlignment(Pos.CENTER);
 
-        VBox textArea = new VBox(8, resultTextLabel, toggleOriginalButton);
+        whoaAnswersGrid.setHgap(8);
+        whoaAnswersGrid.setVgap(6);
+        whoaAnswersGrid.add(whoaAnswerOneButton, 0, 0);
+        whoaAnswersGrid.add(whoaAnswerTwoButton, 1, 0);
+        whoaAnswersGrid.add(whoaAnswerThreeButton, 0, 1);
+        whoaAnswersGrid.add(whoaAnswerFourButton, 1, 1);
+        whoaAnswerButtons.forEach(button -> {
+            button.setMaxWidth(Double.MAX_VALUE);
+            GridPane.setHgrow(button, Priority.ALWAYS);
+        });
+
+        VBox textArea = new VBox(5, resultTextLabel, toggleOriginalButton);
         textArea.setAlignment(Pos.BOTTOM_LEFT);
 
-        VBox result = new VBox(10, resultHeader, textArea, gameActions, gameFeedbackLabel);
+        VBox result = new VBox(7, resultHeader, whoaVideoPane, whoaMediaControls, textArea, gameActions, whoaAnswersGrid, gameFeedbackLabel);
         result.getStyleClass().add("result-panel");
         return result;
     }
@@ -284,8 +381,16 @@ public class MainFrame {
     private Label createBodyLabel(String text) {
         Label label = new Label(text);
         label.setWrapText(true);
+        label.setMaxWidth(Double.MAX_VALUE);
         label.getStyleClass().add("body-copy");
         return label;
+    }
+
+    private Button createWhoaAnswerButton() {
+        Button button = new Button();
+        button.setWrapText(true);
+        button.setMinHeight(48);
+        return button;
     }
 
     private VBox createHistoryHeader() {
@@ -376,11 +481,17 @@ public class MainFrame {
             gameRunActive = false;
             gameRunId++;
         }
+        if (currentScreen == ApiScreen.WHOA_GAME && screen != ApiScreen.WHOA_GAME) {
+            whoaRunActive = false;
+            whoaRunId++;
+            disposeWhoaMediaPlayer();
+        }
         currentScreen = screen;
         currentResult = null;
         currentTranslation = "";
         showingOriginal = false;
         currentFactGameQuestion = null;
+        currentWhoaGameQuestion = null;
 
         if (root != null) {
             root.getStyleClass().removeAll(ApiScreen.themeClasses());
@@ -392,6 +503,7 @@ public class MainFrame {
             case DAD_JOKE -> dadButton;
             case USELESS_FACT -> factButton;
             case FACT_GAME -> gameNavButton;
+            case WHOA_GAME -> whoaGameNavButton;
             case HISTORY -> historyNavButton;
             case FAVORITES -> favoritesNavButton;
         };
@@ -415,36 +527,77 @@ public class MainFrame {
         screenSubtitleLabel.setText(screen.subtitle);
         generateButton.setText(screen.generateText);
         resultTextLabel.setText(screen.placeholderText);
-        resultTitleLabel.setText(screen == ApiScreen.FACT_GAME ? "Domanda" : "Traduzione");
+        resultTitleLabel.setText(switch (screen) {
+            case FACT_GAME -> "Domanda";
+            case WHOA_GAME -> "Clip";
+            default -> "Traduzione";
+        });
         toggleOriginalButton.setText("Visualizza originale");
         setToggleOriginalButtonVisible(false);
 
         boolean chuckScreen = screen == ApiScreen.CHUCK;
         boolean gameScreen = screen == ApiScreen.FACT_GAME;
+        boolean whoaGameScreen = screen == ApiScreen.WHOA_GAME;
         categoryPicker.setVisible(chuckScreen);
         categoryPicker.setManaged(chuckScreen);
         categoryCombo.setDisable(!chuckScreen || categoryCombo.getItems().isEmpty());
-        copyButton.setVisible(!gameScreen);
-        copyButton.setManaged(!gameScreen);
-        generateButton.setText(gameScreen ? "Nuova partita" : screen.generateText);
-        favoriteButton.setVisible(!gameScreen);
-        favoriteButton.setManaged(!gameScreen);
+        statusLabel.setVisible(false);
+        statusLabel.setManaged(false);
+        copyButton.setVisible(!gameScreen && !whoaGameScreen);
+        copyButton.setManaged(!gameScreen && !whoaGameScreen);
+        generateButton.setText(gameScreen || whoaGameScreen ? "Nuova partita" : screen.generateText);
+        favoriteButton.setVisible(!gameScreen && !whoaGameScreen);
+        favoriteButton.setManaged(!gameScreen && !whoaGameScreen);
         trueButton.setVisible(gameScreen);
         trueButton.setManaged(gameScreen);
         falseButton.setVisible(gameScreen);
         falseButton.setManaged(gameScreen);
+        whoaReplayButton.setVisible(whoaGameScreen);
+        whoaReplayButton.setManaged(whoaGameScreen);
+        whoaMediaControls.setVisible(whoaGameScreen);
+        whoaMediaControls.setManaged(whoaGameScreen);
+        whoaVideoPane.setVisible(whoaGameScreen);
+        whoaVideoPane.setManaged(whoaGameScreen);
+        whoaAnswersGrid.setVisible(whoaGameScreen);
+        whoaAnswersGrid.setManaged(whoaGameScreen);
+        whoaAnswerButtons.forEach(button -> {
+            button.setText("");
+            button.setUserData(null);
+        });
+        whoaReplayButton.setText("Replay");
+        currentWhoaExternalVideoUrl = null;
         gameScoreLabel.setVisible(gameScreen);
         gameScoreLabel.setManaged(gameScreen);
-        gameFeedbackLabel.setVisible(gameScreen);
-        gameFeedbackLabel.setManaged(gameScreen);
+        whoaScoreLabel.setVisible(whoaGameScreen);
+        whoaScoreLabel.setManaged(whoaGameScreen);
+        gameFeedbackLabel.setVisible(gameScreen || whoaGameScreen);
+        gameFeedbackLabel.setManaged(gameScreen || whoaGameScreen);
         gameFeedbackLabel.setText("");
-        updateGameScore();
+        if (whoaGameScreen) {
+            whoaVideoPlaceholderLabel.setText("La clip apparira' qui.");
+            whoaVideoPlaceholderLabel.setVisible(true);
+            updateWhoaScore();
+        } else {
+            updateGameScore();
+        }
         setBusy(false, "Pronto");
     }
 
     private void generateContent() {
         if (currentScreen == ApiScreen.FACT_GAME) {
+            if (gameRunActive) {
+                gameFeedbackLabel.setText("Partita gia' in corso.");
+                return;
+            }
             startFactGame();
+            return;
+        }
+        if (currentScreen == ApiScreen.WHOA_GAME) {
+            if (whoaRunActive) {
+                gameFeedbackLabel.setText("Partita gia' in corso.");
+                return;
+            }
+            startWhoaGame();
             return;
         }
 
@@ -469,6 +622,7 @@ public class MainFrame {
             case DAD_JOKE -> dadJokeService::getRandomJoke;
             case USELESS_FACT -> uselessFactService::getRandomFact;
             case FACT_GAME -> uselessFactService::getRandomFact;
+            case WHOA_GAME -> uselessFactService::getRandomFact;
             case CHUCK -> this::getChuckResult;
             default -> chuckNorrisService::getRandomJoke;
         };
@@ -585,6 +739,209 @@ public class MainFrame {
         }
         updateGameScore();
         setBusy(false, "Fine partita");
+    }
+
+    private void startWhoaGame() {
+        whoaRunId++;
+        whoaRunActive = true;
+        whoaScore = 0;
+        currentWhoaGameQuestion = null;
+        disposeWhoaMediaPlayer();
+        gameFeedbackLabel.setText("");
+        currentWhoaExternalVideoUrl = null;
+        whoaVideoPlaceholderLabel.setText("Caricamento clip...");
+        whoaVideoPlaceholderLabel.setVisible(true);
+        updateWhoaScore();
+        generateWhoaQuestion(whoaRunId);
+    }
+
+    private void generateWhoaQuestion(int runId) {
+        if (!whoaRunActive || currentScreen != ApiScreen.WHOA_GAME || runId != whoaRunId) {
+            return;
+        }
+
+        setBusy(true, "Preparazione...");
+        disposeWhoaMediaPlayer();
+        gameFeedbackLabel.setText("");
+        currentWhoaGameQuestion = null;
+        whoaVideoPlaceholderLabel.setText("Caricamento clip...");
+        whoaVideoPlaceholderLabel.setVisible(true);
+
+        CompletableFuture.supplyAsync(this::buildWhoaGameQuestion)
+                .thenAccept(question -> Platform.runLater(() -> {
+                    if (whoaRunActive && currentScreen == ApiScreen.WHOA_GAME && runId == whoaRunId) {
+                        renderWhoaGameQuestion(question);
+                    }
+                }))
+                .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        if (whoaRunActive && currentScreen == ApiScreen.WHOA_GAME && runId == whoaRunId) {
+                            setBusy(false, "Errore");
+                            showError(userMessage(ex));
+                        }
+                    });
+                    return null;
+                });
+    }
+
+    private WhoaGameQuestion buildWhoaGameQuestion() {
+        if (whoaMovies.size() < 4) {
+            whoaMovies = whoaService.getMovies();
+        }
+        WhoaResponse whoa = whoaService.getRandomWhoa();
+        List<String> choices = buildWhoaChoices(whoa.movie());
+        return new WhoaGameQuestion(whoa, choices);
+    }
+
+    private List<String> buildWhoaChoices(String correctMovie) {
+        List<String> wrongMovies = whoaMovies.stream()
+                .filter(movie -> !movie.equalsIgnoreCase(correctMovie))
+                .distinct()
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        if (wrongMovies.size() < 3) {
+            throw new IllegalStateException("lista film Whoa insufficiente.");
+        }
+        Collections.shuffle(wrongMovies, random);
+        List<String> choices = new ArrayList<>(wrongMovies.subList(0, 3));
+        choices.add(correctMovie);
+        Collections.shuffle(choices, random);
+        return choices;
+    }
+
+    private void renderWhoaGameQuestion(WhoaGameQuestion question) {
+        currentWhoaGameQuestion = question;
+        for (int i = 0; i < whoaAnswerButtons.size(); i++) {
+            Button button = whoaAnswerButtons.get(i);
+            String choice = question.choices().get(i);
+            button.setText(choice);
+            button.setUserData(choice);
+        }
+        playWhoaVideo(question.whoa(), question.whoa().playableVideoUrls());
+        setBusy(false, "In gioco");
+    }
+
+    private void playWhoaVideo(WhoaResponse whoa, List<String> mediaUrls) {
+        disposeWhoaMediaPlayer();
+        if (mediaUrls.isEmpty()) {
+            currentWhoaExternalVideoUrl = whoa.firstPlayableVideoUrl();
+            whoaReplayButton.setText("Apri video");
+            whoaVideoPlaceholderLabel.setText("Video non supportato da JavaFX. Aprilo nel browser.");
+            whoaVideoPlaceholderLabel.setVisible(true);
+            setBusy(false, "Apri video");
+            return;
+        }
+
+        String mediaUrl = mediaUrls.get(0);
+        currentWhoaExternalVideoUrl = mediaUrl;
+        whoaReplayButton.setText("Replay");
+        whoaVideoPlaceholderLabel.setText("Caricamento video...");
+        whoaVideoPlaceholderLabel.setVisible(true);
+
+        MediaPlayer player;
+        try {
+            player = new MediaPlayer(new Media(mediaUrl));
+        } catch (MediaException | IllegalArgumentException ex) {
+            playWhoaVideo(whoa, mediaUrls.subList(1, mediaUrls.size()));
+            return;
+        }
+        whoaMediaPlayer = player;
+        player.setOnReady(() -> {
+            whoaVideoPlaceholderLabel.setVisible(false);
+            player.play();
+        });
+        player.setOnError(() -> Platform.runLater(() -> {
+            if (player != whoaMediaPlayer) {
+                return;
+            }
+            playWhoaVideo(whoa, mediaUrls.subList(1, mediaUrls.size()));
+        }));
+        whoaMediaView.setMediaPlayer(player);
+    }
+
+    private void replayWhoaClip() {
+        if (whoaMediaPlayer == null) {
+            openCurrentWhoaVideoExternally();
+            return;
+        }
+        whoaMediaPlayer.seek(Duration.ZERO);
+        whoaMediaPlayer.play();
+    }
+
+    private void openCurrentWhoaVideoExternally() {
+        if (currentWhoaExternalVideoUrl == null || currentWhoaExternalVideoUrl.isBlank()) {
+            return;
+        }
+        try {
+            if (!Desktop.isDesktopSupported()) {
+                showError("Errore: apertura del browser non supportata su questo sistema.");
+                return;
+            }
+            Desktop.getDesktop().browse(URI.create(currentWhoaExternalVideoUrl));
+        } catch (IOException | IllegalArgumentException ex) {
+            showError("Errore: impossibile aprire il video nel browser.");
+        }
+    }
+
+    private void answerWhoaQuestion(String selectedMovie) {
+        if (!whoaRunActive || currentWhoaGameQuestion == null || selectedMovie == null) {
+            gameFeedbackLabel.setText("Avvia una partita prima di rispondere.");
+            return;
+        }
+
+        WhoaResponse whoa = currentWhoaGameQuestion.whoa();
+        boolean correct = selectedMovie.equals(whoa.movie());
+        if (correct) {
+            whoaScore++;
+        }
+
+        resultTitleLabel.setText(correct ? "Risposta corretta" : "Risposta sbagliata");
+        gameFeedbackLabel.setText((correct ? "Esatto: " : "Era: ")
+                + whoa.movie()
+                + (whoa.year() == null ? "" : " (" + whoa.year() + ")")
+                + ".");
+        whoaAnswerButtons.forEach(button -> button.setDisable(true));
+        updateWhoaScore();
+        statusLabel.setText(correct ? "Corretto" : "Sbagliato");
+        currentWhoaGameQuestion = null;
+
+        if (correct) {
+            scheduleNextWhoaQuestion(whoaRunId);
+        } else {
+            finishWhoaGame();
+        }
+    }
+
+    private void updateWhoaScore() {
+        whoaScoreLabel.setText("Score: " + whoaScore + " | Record: " + whoaHighScore);
+    }
+
+    private void scheduleNextWhoaQuestion(int runId) {
+        PauseTransition delay = new PauseTransition(Duration.seconds(NEXT_WHOA_DELAY_SECONDS));
+        delay.setOnFinished(event -> generateWhoaQuestion(runId));
+        delay.play();
+    }
+
+    private void finishWhoaGame() {
+        whoaRunActive = false;
+        if (whoaScore > whoaHighScore) {
+            whoaHighScore = whoaScore;
+            persistWhoaHighScore();
+            gameFeedbackLabel.setText(gameFeedbackLabel.getText() + " Nuovo record: " + whoaHighScore + ".");
+        } else {
+            gameFeedbackLabel.setText(gameFeedbackLabel.getText() + " Partita finita.");
+        }
+        updateWhoaScore();
+        setBusy(false, "Fine partita");
+    }
+
+    private void disposeWhoaMediaPlayer() {
+        if (whoaMediaPlayer == null) {
+            return;
+        }
+        whoaMediaPlayer.stop();
+        whoaMediaPlayer.dispose();
+        whoaMediaPlayer = null;
+        whoaMediaView.setMediaPlayer(null);
     }
 
     private JokeResult getChuckResult() {
@@ -723,6 +1080,28 @@ public class MainFrame {
         }
     }
 
+    private void loadWhoaHighScore() {
+        if (!Files.exists(WHOA_GAME_HIGH_SCORE_FILE)) {
+            return;
+        }
+
+        try {
+            String savedScore = Files.readString(WHOA_GAME_HIGH_SCORE_FILE, StandardCharsets.UTF_8).trim();
+            whoaHighScore = savedScore.isBlank() ? 0 : Integer.parseInt(savedScore);
+        } catch (IOException | NumberFormatException ex) {
+            whoaHighScore = 0;
+        }
+    }
+
+    private void persistWhoaHighScore() {
+        try {
+            Files.createDirectories(WHOA_GAME_HIGH_SCORE_FILE.getParent());
+            Files.writeString(WHOA_GAME_HIGH_SCORE_FILE, Integer.toString(whoaHighScore), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            statusLabel.setText("Record non salvato");
+        }
+    }
+
     private void applyHistoryFilter(String query) {
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
         filteredHistory.setPredicate(entry -> {
@@ -769,12 +1148,24 @@ public class MainFrame {
 
     private void setBusy(boolean busy, String status) {
         // Stato unico per evitare click concorrenti durante chiamate HTTP/traduzione.
-        generateButton.setDisable(busy || currentScreen == ApiScreen.HISTORY || currentScreen == ApiScreen.FAVORITES);
+        boolean gameAlreadyRunning = currentScreen == ApiScreen.FACT_GAME && gameRunActive;
+        boolean whoaAlreadyRunning = currentScreen == ApiScreen.WHOA_GAME && whoaRunActive;
+        generateButton.setDisable(busy
+                || currentScreen == ApiScreen.HISTORY
+                || currentScreen == ApiScreen.FAVORITES
+                || gameAlreadyRunning
+                || whoaAlreadyRunning);
         copyButton.setDisable(busy || currentResult == null);
         favoriteButton.setDisable(busy || currentResult == null);
         toggleOriginalButton.setDisable(busy || currentResult == null || currentTranslation.isBlank() || currentTranslation.equals(currentResult.originalText()));
         trueButton.setDisable(busy || currentScreen != ApiScreen.FACT_GAME || currentFactGameQuestion == null);
         falseButton.setDisable(busy || currentScreen != ApiScreen.FACT_GAME || currentFactGameQuestion == null);
+        whoaReplayButton.setDisable(busy
+                || currentScreen != ApiScreen.WHOA_GAME
+                || (whoaMediaPlayer == null && currentWhoaExternalVideoUrl == null));
+        whoaAnswerButtons.forEach(button ->
+                button.setDisable(busy || currentScreen != ApiScreen.WHOA_GAME || currentWhoaGameQuestion == null)
+        );
         statusLabel.setText(status);
     }
 
@@ -853,9 +1244,17 @@ public class MainFrame {
                 "game-theme",
                 "🎯",
                 "Vero o falso?",
-                "Rispondi finche' non sbagli: dopo ogni risposta corretta arriva automaticamente una nuova domanda.",
+                "Verifica se il fatto mostrato è vero o falso.",
                 "Nuova partita",
                 "Premi Nuova partita per iniziare, poi scegli Vero o Falso."
+        ),
+        WHOA_GAME(
+                "whoa-theme",
+                "!",
+                "Whoa Game",
+                "In quale film Keanu Reeves dice \"Whoa\".",
+                "Nuova partita",
+                ""
         ),
         HISTORY(
                 "history-theme",
@@ -901,5 +1300,8 @@ public class MainFrame {
     }
 
     private record FactGameQuestion(String displayedFact, String trueFactText, boolean trueFact) {
+    }
+
+    private record WhoaGameQuestion(WhoaResponse whoa, List<String> choices) {
     }
 }
