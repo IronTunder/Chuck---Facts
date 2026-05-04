@@ -478,10 +478,12 @@ public class MainFrame {
     private void showScreen(ApiScreen screen) {
         // Ogni cambio sezione riparte da uno stato pulito per evitare contenuti vecchi.
         if (currentScreen == ApiScreen.FACT_GAME && screen != ApiScreen.FACT_GAME) {
+            saveInterruptedFactGameRecord();
             gameRunActive = false;
             gameRunId++;
         }
         if (currentScreen == ApiScreen.WHOA_GAME && screen != ApiScreen.WHOA_GAME) {
+            saveInterruptedWhoaGameRecord();
             whoaRunActive = false;
             whoaRunId++;
             disposeWhoaMediaPlayer();
@@ -722,6 +724,15 @@ public class MainFrame {
         gameScoreLabel.setText("Punteggio: " + gameScore + " | Record: " + gameHighScore);
     }
 
+    private void saveInterruptedFactGameRecord() {
+        if (!gameRunActive || gameScore <= gameHighScore) {
+            return;
+        }
+        gameHighScore = gameScore;
+        persistGameHighScore();
+        updateGameScore();
+    }
+
     private void scheduleNextFactQuestion(int runId, double delaySeconds) {
         PauseTransition delay = new PauseTransition(Duration.seconds(delaySeconds));
         delay.setOnFinished(event -> generateFactQuestion(runId));
@@ -913,6 +924,15 @@ public class MainFrame {
 
     private void updateWhoaScore() {
         whoaScoreLabel.setText("Score: " + whoaScore + " | Record: " + whoaHighScore);
+    }
+
+    private void saveInterruptedWhoaGameRecord() {
+        if (!whoaRunActive || whoaScore <= whoaHighScore) {
+            return;
+        }
+        whoaHighScore = whoaScore;
+        persistWhoaHighScore();
+        updateWhoaScore();
     }
 
     private void scheduleNextWhoaQuestion(int runId) {
