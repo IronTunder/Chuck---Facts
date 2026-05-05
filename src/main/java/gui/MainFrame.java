@@ -166,6 +166,7 @@ public class MainFrame {
     private int gameHighScore;
     private int gameRunId;
     private boolean gameRunActive;
+    private int contentRequestId;
     private WhoaGameQuestion currentWhoaGameQuestion;
     private List<String> whoaMovies = List.of();
     private int whoaScore;
@@ -491,6 +492,7 @@ public class MainFrame {
         currentScreen = screen;
         currentResult = null;
         currentTranslation = "";
+        contentRequestId++;
         showingOriginal = false;
         currentFactGameQuestion = null;
         currentWhoaGameQuestion = null;
@@ -606,13 +608,23 @@ public class MainFrame {
         setBusy(true, "Caricamento...");
 
     
-        CompletableFuture.supplyAsync(selectedSupplier())
-                .thenCompose(result -> CompletableFuture.supplyAsync(() -> translateResult(result)))
-                .thenAccept(content -> Platform.runLater(() -> renderGeneratedContent(content)))
+        ApiScreen requestScreen = currentScreen;
+        int requestId = ++contentRequestId;
+        Supplier<JokeResult> supplier = selectedSupplier();
+
+        CompletableFuture.supplyAsync(supplier)
+                .thenCompose(result -> CompletableFuture.supplyAsync(() -> translateResult(result, requestScreen)))
+                .thenAccept(content -> Platform.runLater(() -> {
+                    if (currentScreen == requestScreen && requestId == contentRequestId) {
+                        renderGeneratedContent(content);
+                    }
+                }))
                 .exceptionally(ex -> {
                     Platform.runLater(() -> {
-                        setBusy(false, "Errore");
-                        showError(userMessage(ex));
+                        if (currentScreen == requestScreen && requestId == contentRequestId) {
+                            setBusy(false, "Errore");
+                            showError(userMessage(ex));
+                        }
                     });
                     return null;
                 });
@@ -661,6 +673,8 @@ public class MainFrame {
                 .exceptionally(ex -> {
                     Platform.runLater(() -> {
                         if (gameRunActive && currentScreen == ApiScreen.FACT_GAME && runId == gameRunId) {
+                            gameRunActive = false;
+                            currentFactGameQuestion = null;
                             setBusy(false, "Errore");
                             showError(userMessage(ex));
                         }
@@ -787,6 +801,11 @@ public class MainFrame {
                 .exceptionally(ex -> {
                     Platform.runLater(() -> {
                         if (whoaRunActive && currentScreen == ApiScreen.WHOA_GAME && runId == whoaRunId) {
+                            whoaRunActive = false;
+                            currentWhoaGameQuestion = null;
+                            disposeWhoaMediaPlayer();
+                            currentWhoaExternalVideoUrl = null;
+                            whoaVideoPlaceholderLabel.setText("Clip non disponibile.");
                             setBusy(false, "Errore");
                             showError(userMessage(ex));
                         }
@@ -972,8 +991,8 @@ public class MainFrame {
         return chuckNorrisService.getRandomJokeByCategory(category);
     }
 
-    private GeneratedContent translateResult(JokeResult result) {
-        if (currentScreen == ApiScreen.DAD_JOKE) {
+    private GeneratedContent translateResult(JokeResult result, ApiScreen requestScreen) {
+        if (requestScreen == ApiScreen.DAD_JOKE) {
             return new GeneratedContent(result, result.originalText(), true);
         }
         try {
@@ -1240,7 +1259,7 @@ public class MainFrame {
                 "chuck-theme",
                 "🥋",
                 "Chuck Norris",
-                "Genera una battuta casuale oppure scegli una categoria.",
+                "Rendi omaggio a Chuck Norris facendoti due risate.",
                 "Genera Chuck",
                 "Scegli una categoria o lascia Casuale, poi genera una battuta."
         ),
