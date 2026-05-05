@@ -147,6 +147,14 @@ Le chiamate HTTP sono centralizzate in `HttpUtil`, che gestisce:
 
 I preferiti e i record dei giochi vengono salvati nella cartella utente, sotto `.chuck-and-facts`, in modo da mantenere i dati anche dopo la chiusura dell'applicazione.
 
+## Licenze e Servizi di Terze Parti
+
+Il codice sorgente sviluppato per Chuck & Facts e' distribuito con licenza MIT, come indicato nel file `LICENSE`.
+
+Le librerie e i plugin usati dal progetto mantengono le rispettive licenze: OpenJFX/JavaFX e' distribuito con GPL v2 e Classpath Exception, Gson e i plugin Maven principali sono distribuiti con Apache License 2.0, mentre JUnit 5 e' distribuito con Eclipse Public License 2.0.
+
+Le API esterne non vengono redistribuite insieme al progetto: sono servizi interrogati via HTTP durante l'esecuzione. Per questo motivo l'applicazione rimanda ai termini e alla documentazione dei singoli provider, in particolare ChuckNorris.io, icanhazdadjoke, Useless Facts, Whoa API e DeepSeek. I riferimenti aggiornati a licenze, termini d'uso e documentazione sono raccolti nel file `THIRD_PARTY_NOTICES.md`.
+
 ## Conclusione
 
 Chuck & Facts integra piu' Web Service REST con una GUI JavaFX e usa l'Intelligenza Artificiale come livello di arricchimento del contenuto. Le API pubbliche forniscono dati e media, mentre DeepSeek si occupa di operazioni linguistiche e creative: traduzione e generazione controllata di affermazioni false ma plausibili. Questa separazione rende chiaro il ruolo dei servizi tradizionali e quello dell'IA all'interno dell'applicazione.

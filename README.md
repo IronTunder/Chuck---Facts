@@ -100,3 +100,5 @@ src/test/java           Test JUnit
 ## Licenza
 
 Questo progetto e' distribuito con licenza MIT. Vedere il file `LICENSE` per i dettagli.
+
+Le dipendenze software e le API esterne usate dall'app sono riepilogate in `THIRD_PARTY_NOTICES.md`.
