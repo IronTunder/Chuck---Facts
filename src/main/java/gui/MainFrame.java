@@ -288,7 +288,7 @@ public class MainFrame {
     }
 
     private StackPane createCenter() {
-        // StackPane permette di alternare contenuto principale e cronologia senza ricreare la scena.
+        
         contentView.getStyleClass().add("screen-scroll-content");
         contentView.setSpacing(10);
         contentView.setMaxWidth(900);
@@ -426,7 +426,7 @@ public class MainFrame {
     }
 
     private void configureEntryTable(TableView<HistoryEntry> table) {
-        // La cronologia resta compatta: la colonna grande mostra solo un'anteprima.
+        
         TableColumn<HistoryEntry, String> dateColumn = new TableColumn<>("Data/Ora");
         dateColumn.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().dateTime()));
         dateColumn.setPrefWidth(125);
@@ -446,7 +446,7 @@ public class MainFrame {
         table.setRowFactory(entryTable -> {
             TableRow<HistoryEntry> row = new TableRow<>();
             row.setTooltip(new Tooltip("Doppio clic per leggere il testo completo"));
-            // Il popup evita di allargare la tabella quando il contenuto e' lungo.
+            
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
                     showHistoryEntry(row.getItem());
@@ -477,7 +477,7 @@ public class MainFrame {
     }
 
     private void showScreen(ApiScreen screen) {
-        // Ogni cambio sezione riparte da uno stato pulito per evitare contenuti vecchi.
+        
         if (currentScreen == ApiScreen.FACT_GAME && screen != ApiScreen.FACT_GAME) {
             saveInterruptedFactGameRecord();
             gameRunActive = false;
@@ -515,7 +515,7 @@ public class MainFrame {
 
         boolean historyScreen = screen == ApiScreen.HISTORY;
         boolean favoritesScreen = screen == ApiScreen.FAVORITES;
-        // Le due viste sono nello stesso StackPane: managed=false libera spazio nel layout.
+        
         contentView.setVisible(!historyScreen && !favoritesScreen);
         contentView.setManaged(!historyScreen && !favoritesScreen);
         historyView.setVisible(historyScreen);
@@ -631,7 +631,7 @@ public class MainFrame {
     }
 
     private Supplier<JokeResult> selectedSupplier() {
-        // Isola la scelta del provider: generateContent non deve conoscere i dettagli delle API.
+        
         return switch (currentScreen) {
             case DAD_JOKE -> dadJokeService::getRandomJoke;
             case USELESS_FACT -> uselessFactService::getRandomFact;
@@ -1045,7 +1045,7 @@ public class MainFrame {
         if (currentResult == null) {
             return;
         }
-        // Nuovi elementi in cima, cosi' la cronologia mostra subito l'ultima richiesta.
+        
         String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
         history.add(0, new HistoryEntry(now, currentResult.source(), displayedText(), currentResult.originalText()));
     }
@@ -1178,7 +1178,7 @@ public class MainFrame {
             statusLabel.setText("Niente da copiare");
             return;
         }
-        // Usa la clipboard di sistema, quindi il testo e' disponibile anche fuori dall'app.
+        
         ClipboardContent content = new ClipboardContent();
         content.putString(value);
         Clipboard.getSystemClipboard().setContent(content);
@@ -1186,7 +1186,7 @@ public class MainFrame {
     }
 
     private void setBusy(boolean busy, String status) {
-        // Stato unico per evitare click concorrenti durante chiamate HTTP/traduzione.
+        
         boolean gameAlreadyRunning = currentScreen == ApiScreen.FACT_GAME && gameRunActive;
         boolean whoaAlreadyRunning = currentScreen == ApiScreen.WHOA_GAME && whoaRunActive;
         generateButton.setDisable(busy
@@ -1217,7 +1217,7 @@ public class MainFrame {
     }
 
     private void showHistoryEntry(HistoryEntry entry) {
-        // TextArea non editabile: selezionabile, copiabile e piu' comoda di un Label lungo.
+        
         TextArea textArea = new TextArea(entry.originalText());
         textArea.setEditable(false);
         textArea.setWrapText(true);
@@ -1240,7 +1240,7 @@ public class MainFrame {
                 setText(null);
                 return;
             }
-            // L'anteprima mantiene l'altezza riga stabile; il testo completo e' nel popup.
+            
             setText(text.length() <= PREVIEW_LIMIT ? text : text.substring(0, PREVIEW_LIMIT - 3) + "...");
         }
     }

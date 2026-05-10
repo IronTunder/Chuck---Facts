@@ -25,7 +25,7 @@ public class ChuckNorrisService {
     }
 
     public JokeResult getRandomJoke() {
-        // Endpoint semplice: una risposta valida contiene sempre il campo "value".
+        
         ChuckNorrisResponse response = httpUtil.getJson(RANDOM_URL, ChuckNorrisResponse.class);
         validateText(response == null ? null : response.value());
         return new JokeResult(response.value(), "Battuta Chuck Norris", "ChuckNorris.io");
@@ -35,7 +35,7 @@ public class ChuckNorrisService {
         if (category == null || category.isBlank()) {
             throw new IllegalStateException("seleziona una categoria Chuck Norris.");
         }
-        // La categoria entra nella query string, quindi va codificata anche se arriva dalla combo.
+        
         String encoded = URLEncoder.encode(category, StandardCharsets.UTF_8);
         ChuckNorrisResponse response = httpUtil.getJson(RANDOM_URL + "?category=" + encoded, ChuckNorrisResponse.class);
         validateText(response == null ? null : response.value());
@@ -43,7 +43,7 @@ public class ChuckNorrisService {
     }
 
     public List<String> getCategories() {
-        // Gson ha bisogno del TypeToken per deserializzare correttamente List<String>.
+        
         Type listType = new TypeToken<List<String>>() {
         }.getType();
         List<String> categories = httpUtil.getJson(CATEGORIES_URL, listType);
@@ -54,7 +54,7 @@ public class ChuckNorrisService {
     }
 
     private void validateText(String text) {
-        // Centralizza il controllo per non mostrare mai contenuti vuoti in UI.
+        
         if (text == null || text.isBlank()) {
             throw new IllegalStateException("risposta Chuck Norris non valida.");
         }

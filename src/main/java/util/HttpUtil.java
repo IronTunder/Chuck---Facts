@@ -38,7 +38,7 @@ public class HttpUtil {
     }
 
     public <T> T getJson(String url, Type responseType, Map<String, String> headers) {
-        // Costruzione comune per tutti gli endpoint GET che restituiscono JSON.
+        
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(20))
@@ -48,7 +48,7 @@ public class HttpUtil {
     }
 
     public <T> T postForm(String url, String body, Class<T> responseType, Map<String, String> headers) {
-        // Supporto tenuto per API che richiedono form-urlencoded.
+        
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(20))
@@ -59,7 +59,7 @@ public class HttpUtil {
     }
 
     public <T> T postJson(String url, Object body, Class<T> responseType, Map<String, String> headers) {
-        // Usato dai servizi AI: serializza il body Java in JSON prima dell'invio.
+        
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(30))
@@ -71,7 +71,7 @@ public class HttpUtil {
 
     private <T> T send(HttpRequest request, Type responseType) {
         try {
-            // Punto unico di invio/parsing: mantiene coerenti timeout, errori e messaggi UI.
+            
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             ensureSuccess(response.statusCode(), response.body());
             return gson.fromJson(response.body(), responseType);
@@ -89,7 +89,7 @@ public class HttpUtil {
         if (statusCode >= 200 && statusCode < 300) {
             return;
         }
-        // Gli errori piu' comuni diventano messaggi comprensibili per l'utente.
+        
         if (statusCode == 401 || statusCode == 403) {
             throw new IllegalStateException("API key non valida o non autorizzata.");
         }
@@ -101,7 +101,7 @@ public class HttpUtil {
     }
 
     private String abbreviate(String text) {
-        // Evita popup enormi quando un servizio restituisce un body di errore molto lungo.
+        
         String singleLine = text.replaceAll("\\s+", " ").trim();
         return singleLine.length() <= 160 ? singleLine : singleLine.substring(0, 157) + "...";
     }

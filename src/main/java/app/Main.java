@@ -7,7 +7,7 @@ import javafx.stage.Stage;
 public class Main extends Application {
     @Override
     public void start(Stage stage) {
-        // JavaFX chiama questo metodo sul thread UI: da qui costruiamo la finestra principale.
+        
         MainFrame mainFrame = new MainFrame();
         mainFrame.show(stage);
     }

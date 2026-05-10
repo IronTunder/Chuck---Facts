@@ -3,7 +3,7 @@ package model;
 import java.util.List;
 
 public class DeepSeekChatResponse {
-    // Mappatura minima della risposta DeepSeek: ci serve solo choices[].message.content.
+    
     private List<Choice> choices;
 
     public List<Choice> choices() {

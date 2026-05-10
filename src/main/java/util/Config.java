@@ -18,7 +18,7 @@ public class Config {
         Properties properties = new Properties();
         Path configPath = Path.of("config.properties");
         if (Files.exists(configPath)) {
-            // Il file locale non e' obbligatorio: in assenza di file valgono solo le variabili d'ambiente.
+            
             try (InputStream inputStream = Files.newInputStream(configPath)) {
                 properties.load(inputStream);
             } catch (IOException ex) {
@@ -29,7 +29,7 @@ public class Config {
     }
 
     public Optional<String> get(String key) {
-        // Le variabili d'ambiente hanno priorita', utile in CI o quando non si vuole salvare segreti su disco.
+        
         String envValue = System.getenv(key);
         if (envValue != null && !envValue.isBlank()) {
             return Optional.of(envValue);

@@ -48,17 +48,17 @@ public class DeepSeekService {
     }
 
     private String chatCompletion(String systemPrompt, String userText, double temperature) {
-        // La chiave puo' arrivare da variabile d'ambiente o config.properties.
+        
         String apiKey = config.get("DEEPSEEK_API_KEY")
                 .orElseThrow(() -> new IllegalStateException("API key DeepSeek mancante. Crea config.properties o imposta DEEPSEEK_API_KEY."));
-        // Il modello resta configurabile per passare rapidamente a versioni piu' veloci o economiche.
+        
         String model = config.get("DEEPSEEK_MODEL").orElse(DEFAULT_MODEL);
 
         DeepSeekChatResponse response = httpUtil.postJson(URL, chatRequest(systemPrompt, userText, model, temperature), DeepSeekChatResponse.class, Map.of(
                 "Authorization", "Bearer " + apiKey
         ));
 
-        // DeepSeek segue il formato OpenAI-compatible: la traduzione e' nel primo content valido.
+        
         if (response == null || response.choices() == null || response.choices().isEmpty()) {
             throw new IllegalStateException("risposta DeepSeek non valida.");
         }
@@ -71,7 +71,7 @@ public class DeepSeekService {
     }
 
     private Map<String, Object> chatRequest(String systemPrompt, String text, String model, double temperature) {
-        // Prompt molto vincolato: riduce token, latenza e rischio di spiegazioni extra.
+        
         return Map.of(
                 "model", model,
                 "temperature", temperature,

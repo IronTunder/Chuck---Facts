@@ -18,7 +18,7 @@ public class UselessFactService {
     }
 
     public JokeResult getRandomFact() {
-        // L'endpoint e' fissato in inglese: la traduzione avviene dopo, nel flusso GUI.
+        
         UselessFactResponse response = httpUtil.getJson(URL, UselessFactResponse.class);
         if (response == null || response.text() == null || response.text().isBlank()) {
             throw new IllegalStateException("risposta Useless Facts non valida.");
